@@ -29,9 +29,11 @@ Software requirements
 
 Python (2.7, 3.4 or newer)
     https://www.python.org/
-Django (>= 1.9)
+Django (>= 1.10)
     https://www.djangoproject.com/
-Translate-toolkit (>= 1.14.0)
+siphashc3
+    https://github.com/carlopires/siphashc3
+Translate-toolkit (>= 2.0.0)
     http://toolkit.translatehouse.org/
 Six (>= 1.7.0)
     https://pypi.python.org/pypi/six
@@ -39,12 +41,16 @@ Git (>= 1.6)
     https://git-scm.com/
 Mercurial (>= 2.8) (optional for Mercurial repositories support)
     https://www.mercurial-scm.org/
-python-social-auth (>= 0.2.0)
-    http://psa.matiasaguirre.net/
-Whoosh (>= 2.5, 2.5.7 is recommended, 2.6.0 is broken)
+social-auth-core (>= 1.3.0)
+    https://python-social-auth.readthedocs.io/
+social-auth-app-django (>= 1.2.0)
+    https://python-social-auth.readthedocs.io/
+django-appconf (>= 1.0)
+    https://github.com/django-compressor/django-appconf
+Whoosh (>= 2.7.0)
     https://bitbucket.org/mchaput/whoosh/wiki/Home
 PIL or Pillow library
-    http://python-pillow.org/
+    https://python-pillow.org/
 lxml (>= 3.1.0)
     http://lxml.de/
 PyYaML (>= 3.0) (optional for YAML support)
@@ -52,14 +58,17 @@ PyYaML (>= 3.0) (optional for YAML support)
 defusedxml (>= 0.4)
     https://bitbucket.org/tiran/defusedxml
 dateutil
-    http://labix.org/python-dateutil
-django_compressor
+    https://labix.org/python-dateutil
+django_compressor (>= 2.1.1)
     https://github.com/django-compressor/django-compressor
-django-crispy-forms (>=1.4.0)
-    http://django-crispy-forms.readthedocs.io/
-Django REST Framework (>=3.3)
+django-crispy-forms (>= 1.6.1)
+    https://django-crispy-forms.readthedocs.io/
+Django REST Framework (>=3.4)
     http://www.django-rest-framework.org/
 libravatar (optional for federated avatar support)
+    You need to additionally install pydns (on Python 2) or py3dns (on Python 3)
+    to make libravatar work.
+
     https://pypi.python.org/pypi/pyLibravatar
 pyuca (>= 1.1) (optional for proper sorting of strings)
     https://github.com/jtauber/pyuca
@@ -78,6 +87,145 @@ git-review (optional for Gerrit support)
     https://pypi.python.org/pypi/git-review
 git-svn (>= 2.10.0) (optional for Subversion support)
     https://git-scm.com/docs/git-svn
+tesserocr (>= 2.0.0) (optional for screenshots OCR)
+    https://github.com/sirfz/tesserocr
+
+
+.. _install-weblate:
+
+Installing Weblate
+------------------
+
+Choose installation method that best fits your environment.
+
+First choices include complete setup without relying on your system libraries:
+
+* :ref:`virtualenv`
+* :ref:`docker`
+* :ref:`openshift`
+* :ref:`appliance`
+
+You can also install Weblate directly on your system either fully using
+distribution packages (as of now available for openSUSE only) or mixed setup.
+
+Choose installation method:
+
+* :ref:`install-pip`
+* :ref:`install-git` (if you want to run bleeding edge version)
+* Alternatively you can use released archives. You can download them from our
+  website <https://weblate.org/>.
+
+And install dependencies according your platform:
+
+* :ref:`deps-debian`
+* :ref:`deps-suse`
+* :ref:`deps-osx`
+* :ref:`deps-pip`
+
+.. _virtualenv:
+
+Installing in virtualenv
+++++++++++++++++++++++++
+
+This is recommended method if you don't want to dig into details. This will
+create separate Python environment for Weblate, possibly duplicating some
+system Python libraries.
+
+1. Install development files for libraries we will use during building
+   Python modules:
+
+   .. code-block:: sh
+
+        # Debian/Ubuntu:
+        apt install libxml2-dev libxslt-dev libfreetype6-dev libjpeg-dev libz-dev libyaml-dev python-dev
+
+        # openSUSE/SLES:
+        zypper install libxslt-devel libxml2-devel freetype-devel libjpeg-devel zlib-devel libyaml-devel python-devel
+
+        # Fedora/RHEL/CentOS:
+        dnf install libxslt-devel libxml2-devel freetype-devel libjpeg-devel zlib-devel libyaml-devel python-devel
+
+2. Install pip and virtualenv. Usually they are shipped by your distribution or
+   with Python:
+
+   .. code-block:: sh
+
+        # Debian/Ubuntu:
+        apt-get install python-pip python-virtualenv
+
+        # openSUSE/SLES:
+        zypper install python-pip python-virtualenv
+
+        # Fedora/RHEL/CentOS:
+        dnf install python-pip python-virtualenv
+
+3. Create and activate virtualenv for Weblate (the path in ``/tmp`` is really
+   just an example, you rather want something permanent):
+
+   .. code-block:: sh
+
+        virtualenv /tmp/weblate
+        . /tmp/weblate/bin/activate
+
+4. Install Weblate including all dependencies, you can also use pip to install
+   optional dependecies:
+
+   .. code-block:: sh
+        
+        pip install Weblate
+        # Optional deps
+        pip install pytz python-bidi PyYaML Babel pyuca pylibravatar pydns
+
+5. Create your settings (in our example it would be in 
+   :file:`/tmp/weblate/lib/python2.7/site-packages/weblate/settings.py`
+   based on the :file:`settings_example.py` in same directory).
+6. You can now run Weblate commands using :command:`weblate` command, see
+   :ref:`manage`.
+7. To run webserver, use the wsgi wrapper installed with Weblate (in our case 
+   it is :file:`/tmp/weblate/lib/python2.7/site-packages/weblate/wsgi.py`).
+   Don't forget to set Python search path to your virtualenv as well (for 
+   example using ``virtualenv = /tmp/weblate`` in uwsgi).
+
+.. _install-git:
+
+Installing Weblate from Git
++++++++++++++++++++++++++++
+
+You can also run latest version from Git. It is maintained stable and
+production ready. You can usually find it running on 
+`Hosted Weblate <https://weblate.org/hosting/>`_.
+
+To get latest sources using Git use:
+
+.. code-block:: sh
+
+    git clone https://github.com/WeblateOrg/weblate.git
+
+.. note::
+
+    If you are running version from Git, you should also regenerate locale
+    files every time you are upgrading. You can do this by invoking script
+    :file:`./scripts/generate-locales`.
+
+.. _install-pip:
+
+Installing Weblate by pip
++++++++++++++++++++++++++
+
+If you decide to install Weblate using pip installer, you will notice some
+differences. Most importantly the command line interface is installed  to the
+system path as :command:`weblate` instead of :command:`./manage.py` as used in
+this documentation. Also when invoking this command, you will have to specify
+settings, either by environment variable `DJANGO_SETTINGS` or on the command
+line, for example:
+
+.. code-block:: sh
+
+    weblate --settings=yourproject.settings migrate
+
+.. seealso:: :ref:`invoke-manage`
+
+.. _deps-debian:
 
 Requirements on Debian or Ubuntu
 ++++++++++++++++++++++++++++++++
@@ -89,7 +237,7 @@ install them you can use apt-get:
 
     apt-get install python-pip python-django translate-toolkit \
         python-whoosh python-pil python-libravatar \
-        python-babel git mercurial python-social-auth \
+        python-babel git mercurial \
         python-django-compressor python-django-crispy-forms \
         python-djangorestframework python-dateutil
 
@@ -110,8 +258,9 @@ need to install several Python modules manually using pip:
     # Dependencies for python-social-auth
     apt-get install python-requests-oauthlib python-six python-openid
 
-    # In case python-social-auth package is missing
-    pip install python-social-auth
+    # Social auth
+    pip install social-auth-core
+    pip install social-auth-app-django
 
     # In case your distribution has python-django older than 1.9
     pip install Django
@@ -119,7 +268,7 @@ need to install several Python modules manually using pip:
     # In case python-django-crispy-forms package is missing
     pip install django-crispy-forms
 
-    # In case python-whoosh package is misssing or older than 2.5
+    # In case python-whoosh package is misssing or older than 2.7
     pip install Whoosh
 
     # In case your python-django-compressor package is missing,
@@ -127,7 +276,11 @@ need to install several Python modules manually using pip:
     apt-get install python-compressor
     pip install django_compressor
 
-For proper sorting of a unicode strings, it is recommended to install pyuca:
+    # Optional for OCR support
+    apt-get install tesseract-ocr libtesseract-dev libleptonica-dev cython
+    pip install tesserocr
+
+For proper sorting of a Unicode strings, it is recommended to install pyuca:
 
 .. code-block:: sh
 
@@ -162,6 +315,7 @@ you might need additional components:
     # GitHub PR support: hub
     # See https://hub.github.com/
 
+.. _deps-suse:
 
 Requirements on openSUSE
 ++++++++++++++++++++++++
@@ -172,7 +326,8 @@ Most of requirements are available either directly in openSUSE or in
 .. code-block:: sh
 
     zypper install python-Django translate-toolkit \
-        python-Whoosh python-Pillow python-python-social-auth \
+        python-Whoosh python-Pillow \
+        python-social-auth-core python-social-auth-app-django \
         python-babel Git mercurial python-pyuca \
         python-dateutil
 
@@ -209,6 +364,8 @@ you might need additional components:
     # GitHub PR support: hub
     # See https://hub.github.com/
 
+.. _deps-osx:
+
 Requirements on OSX
 +++++++++++++++++++
 
@@ -221,6 +378,7 @@ your :file:`.bash_profile` file or executed somehow:
 
 This configuration makes the installed libraries available to Python.
 
+.. _deps-pip:
 
 Requirements using pip installer
 ++++++++++++++++++++++++++++++++
@@ -231,61 +389,14 @@ Most requirements can be also installed using pip installer:
 
     pip install -r requirements.txt
 
-Also you will need header files for ``python-dev``, ``libxml2``, ``libxslt``,
-``libjpeg`` and ``libfreetype6`` to compile some of the required Python modules.
+For building some of the extensions devel files for several libraries are required,
+see :ref:`virtualenv` for instructions how to install these.
 
 All optional dependencies (see above) can be installed using:
 
 .. code-block:: sh
 
     pip install -r requirements-optional.txt
-
-On Debian or Ubuntu you can install them using:
-
-.. code-block:: sh
-
-    apt-get install libxml2-dev libxslt-dev libfreetype6-dev libjpeg-dev python-dev
-
-On openSUSE or SLES you can install them using:
-
-.. code-block:: sh
-
-    zypper install libxslt-devel libxml2-devel freetype-devel libjpeg-devel python-devel
-
-.. _install-weblate:
-
-Installing Weblate
-------------------
-
-It is recommended to run latest version from Git. It is maintained stable and
-production ready.
-
-To get latest sources using Git use:
-
-.. code-block:: sh
-
-    git clone https://github.com/WeblateOrg/weblate.git
-
-Alternatively you can use released archives. You can either download them from our
-website <https://weblate.org/> or use pip installer.
-
-.. _install-pip:
-
-Installing Weblate by pip
-+++++++++++++++++++++++++
-
-If you decide to install Weblate using pip installer, you will notice some
-differences. Most importantly the command line interface is installed  to the
-system path as :command:`weblate` instead of :command:`./manage.py` as used in
-this documentation. Also when invoking this command, you will have to specify
-settings, either by environment variable `DJANGO_SETTINGS` or on the command
-line, for example:
-
-.. code-block:: sh
-
-    weblate --settings=yourproject.settings migrate
-
-.. seealso:: :ref:`invoke-manage`
 
 .. _file-permissions:
 
@@ -320,7 +431,8 @@ is really good for testing purposes only.
 
 .. seealso::
 
-   :ref:`production-database`, `Django's databases <https://docs.djangoproject.com/en/stable/ref/databases/>`_
+   :ref:`production-database`,
+   :doc:`django:ref/databases`
 
 PostgreSQL
 ++++++++++
@@ -330,7 +442,7 @@ database using for implementing Django database layer.
 
 .. seealso::
 
-    `PostgreSQL notes <https://docs.djangoproject.com/en/stable/ref/databases/#postgresql-notes>`_
+    :ref:`django:postgresql-notes`
 
 Creating database in PostgreSQL
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -380,7 +492,7 @@ you might hit some problems caused by it.
 
 .. seealso::
 
-    `MySQL notes <https://docs.djangoproject.com/en/stable/ref/databases/#mysql-notes>`_
+    :ref:`django:mysql-notes`
 
 Unicode issues in MySQL
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -399,21 +511,19 @@ subset of Unicode, but this time which can be stored in four bytes in ``utf-8``
 encoding, thus covering all chars currently defined in Unicode).
 
 This can be achieved at database creation time by creating it with this
-character set and specifying the character set in connection settings (see
-:ref:`mysql-config`):
+character set (see :ref:`mysql-create`) and specifying the character set in
+connection settings (see :ref:`mysql-config`).
 
-.. code-block:: mysql
-
-    # Create database on MySQL >= 5.7.7
-    CREATE DATABASE weblate CHARACTER SET utf8mb4;
-    # Use utf8 for older versions
-    # CREATE DATABASE weblate CHARACTER SET utf8;
-
-In case you have existing database, you can change it to ``utf8mb4`` by:
+In case you have existing database, you can change it to ``utf8mb4`` by, but
+this won't change collation of existing fields:
 
 .. code-block:: mysql
 
     ALTER DATABASE weblate CHARACTER SET utf8mb4;
+
+.. seealso::
+
+    `Using Innodb_large_prefix to Avoid ERROR 1071 <http://mechanics.flite.com/blog/2014/07/29/using-innodb-large-prefix-to-avoid-error-1071/>`_
 
 Transaction locking
 ~~~~~~~~~~~~~~~~~~~
@@ -431,7 +541,9 @@ configuration file (usually :file:`/etc/mysql/my.cnf` on Linux):
 
 .. seealso::
 
-    `Setting sql_mode <https://docs.djangoproject.com/en/stable/ref/databases/#setting-sql-mode>`_
+    :ref:`django:mysql-sql-mode`
+
+.. _mysql-create:
 
 Creating database in MySQL
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -442,6 +554,12 @@ Create ``weblate`` user to access the ``weblate`` database:
 
     # Grant all privileges to  weblate user
     GRANT ALL PRIVILEGES ON weblate.* TO 'weblate'@'localhost'  IDENTIFIED BY 'password';
+
+    # Create database on MySQL >= 5.7.7
+    CREATE DATABASE weblate CHARACTER SET utf8mb4;
+
+    # Use utf8 for older versions
+    # CREATE DATABASE weblate CHARACTER SET utf8;
 
 .. _mysql-config:
 
@@ -489,10 +607,11 @@ Weblate sends out emails on various occasions - for account activation and on
 various notifications configured by users. For this it needs access to the SMTP
 server, which will handle this.
 
-The mail server setup is configured using settings ``EMAIL_HOST``,
-``EMAIL_HOST_PASSWORD``, ``EMAIL_HOST_USER`` and ``EMAIL_PORT``.
-Their names are quite self-explaining, but you can find our more information in the
-`Django documentation on them <https://docs.djangoproject.com/en/stable/ref/settings/#email-host>`_.
+The mail server setup is configured using settings
+:setting:`django:EMAIL_HOST`, :setting:`django:EMAIL_HOST_PASSWORD`,
+:setting:`django:EMAIL_HOST_USER` and :setting:`django:EMAIL_PORT`.  Their
+names are quite self-explaining, but you can find our more information in the
+Django documentation.
 
 .. _installation:
 
@@ -507,6 +626,8 @@ Copy :file:`weblate/settings_example.py` to :file:`weblate/settings.py` and
 adjust it to match your setup. You will probably want to adjust following
 options:
 
+.. setting:: ADMINS
+
 ``ADMINS``
 
     List of site administrators to receive notifications when something goes
@@ -514,7 +635,9 @@ options:
 
     .. seealso::
 
-        `ADMINS setting documentation <https://docs.djangoproject.com/en/stable/ref/settings/#admins>`_
+        :setting:`django:ADMINS`
+
+.. setting:: ALLOWED_HOSTS
 
 ``ALLOWED_HOSTS``
 
@@ -527,7 +650,9 @@ options:
 
     .. seealso::
 
-        `ALLOWED_HOSTS setting documentation <https://docs.djangoproject.com/en/stable/ref/settings/#std:setting-ALLOWED_HOSTS>`_
+        :setting:`django:ALLOWED_HOSTS`
+
+.. setting:: SESSION_ENGINE
 
 ``SESSION_ENGINE``
 
@@ -538,7 +663,10 @@ options:
 
     .. seealso::
 
-        `Configuring sessions in Django <https://docs.djangoproject.com/en/stable/topics/http/sessions/#configuring-sessions>`_
+        :ref:`django:configuring-sessions`,
+        :setting:`django:SESSION_ENGINE`
+
+.. setting:: DATABASES
 
 ``DATABASES``
 
@@ -547,9 +675,11 @@ options:
 
     .. seealso::
 
-        :ref:`database-setup`
-        `DATABASES setting documentation <https://docs.djangoproject.com/en/stable/ref/settings/#databases>`_,
-        `Django databases support <https://docs.djangoproject.com/en/stable/ref/databases/>`_
+        :ref:`database-setup`,
+        :setting:`django:DATABASES`,
+        :doc:`django:ref/databases`
+
+.. setting:: DEBUG
 
 ``DEBUG``
 
@@ -562,7 +692,9 @@ options:
 
     .. seealso::
 
-        `DEBUG setting documentation <https://docs.djangoproject.com/en/stable/ref/settings/#debug>`_
+        :setting:`django:DEBUG`,
+
+.. setting:: DEFAULT_FROM_EMAIL
 
 ``DEFAULT_FROM_EMAIL``
 
@@ -570,12 +702,16 @@ options:
 
     .. seealso::
 
-        `DEFAULT_FROM_EMAIL setting documentation`_
+        :std:setting:`django:DEFAULT_FROM_EMAIL`,
+
+.. setting:: SECRET_KEY
 
 ``SECRET_KEY``
 
     Key used by Django to sign some information in cookies, see
     :ref:`production-secret` for more information.
+
+.. setting:: SERVER_EMAIL
 
 ``SERVER_EMAIL``
 
@@ -584,7 +720,7 @@ options:
 
     .. seealso::
 
-        `SERVER_EMAIL setting documentation`_
+        :std:setting:`django:SERVER_EMAIL`
 
 .. _tables-setup:
 
@@ -607,12 +743,6 @@ Once you are done, you should also check :guilabel:`Performance report` in the
 admin interface which will give you hints for non optimal configuration on your
 site.
 
-.. note::
-
-    If you are running version from Git, you should also regenerate locale
-    files every time you are upgrading. You can do this by invoking script
-    :file:`./scripts/generate-locales`.
-
 .. seealso::
 
    :ref:`config`, :ref:`privileges`, :ref:`faq-site`, :ref:`production-site`
@@ -629,7 +759,7 @@ For production setup you should do following adjustments:
 Disable debug mode
 ++++++++++++++++++
 
-Disable Django's debug mode by:
+Disable Django's debug mode (:setting:`DEBUG`) by:
 
 .. code-block:: python
 
@@ -647,7 +777,7 @@ of errors what is not desired in production setup.
 Properly configure admins
 +++++++++++++++++++++++++
 
-Set correct admin addresses to ``ADMINS`` setting for defining who will receive
+Set correct admin addresses to :setting:`ADMINS` setting for defining who will receive
 mail in case something goes wrong on the server, for example:
 
 .. code-block:: python
@@ -695,7 +825,7 @@ For production site, you want something like:
 .. seealso::
 
    :ref:`faq-site`, :djadmin:`changesite`,
-   `Django sites documentation <https://docs.djangoproject.com/en/stable/ref/contrib/sites/>`_
+   :doc:`django:ref/contrib/sites`
 
 .. _production-indexing:
 
@@ -720,8 +850,9 @@ environment), see :ref:`database-setup` for more information.
 
 .. seealso::
 
-   :ref:`database-setup`, :ref:`installation`,
-   `Django's databases <https://docs.djangoproject.com/en/stable/ref/databases/>`_
+    :ref:`database-setup`, 
+    :ref:`installation`,
+    :doc:`django:ref/databases`
 
 .. _production-cache:
 
@@ -742,7 +873,8 @@ variable, for example:
 
 .. seealso::
 
-   :ref:`production-cache-avatar`, `Django’s cache framework <https://docs.djangoproject.com/en/stable/topics/cache/>`_
+    :ref:`production-cache-avatar`, 
+    :doc:`django:topics/cache`
 
 .. _production-cache-avatar:
 
@@ -771,7 +903,10 @@ recommended to use separate, file backed cache for this purpose:
 
 .. seealso::
 
-   :setting:`ENABLE_AVATARS`, :ref:`production-cache`, `Django’s cache framework <https://docs.djangoproject.com/en/stable/topics/cache/>`_
+    :setting:`ENABLE_AVATARS`, 
+    :ref:`avatars`,
+    :ref:`production-cache`, 
+    :doc:`django:topics/cache`
 
 .. _production-email:
 
@@ -779,8 +914,8 @@ Configure email addresses
 +++++++++++++++++++++++++
 
 Weblate needs to send out emails on several occasions and these emails should
-have correct sender address, please configure ``SERVER_EMAIL`` and
-``DEFAULT_FROM_EMAIL`` to match your environment, for example:
+have correct sender address, please configure :setting:`SERVER_EMAIL` and
+:setting:`DEFAULT_FROM_EMAIL` to match your environment, for example:
 
 .. code-block:: python
 
@@ -790,11 +925,8 @@ have correct sender address, please configure ``SERVER_EMAIL`` and
 .. seealso::
 
     :ref:`installation`,
-    `DEFAULT_FROM_EMAIL setting documentation`_,
-    `SERVER_EMAIL setting documentation`_
-
-.. _DEFAULT_FROM_EMAIL setting documentation: https://docs.djangoproject.com/en/stable/ref/settings/#default-from-email
-.. _SERVER_EMAIL setting documentation: https://docs.djangoproject.com/en/stable/ref/settings/#server-email
+    :std:setting:`django:DEFAULT_FROM_EMAIL`,
+    :std:setting:`django:SERVER_EMAIL`
 
 
 .. _production-hosts:
@@ -802,12 +934,12 @@ have correct sender address, please configure ``SERVER_EMAIL`` and
 Allowed hosts setup
 +++++++++++++++++++
 
-Django 1.5 and newer require ``ALLOWED_HOSTS`` to hold list of domain names
+Django 1.5 and newer require :setting:`ALLOWED_HOSTS` to hold list of domain names
 your site is allowed to serve, having it empty will block any request.
 
 .. seealso::
 
-   `ALLOWED_HOSTS setting documentation <https://docs.djangoproject.com/en/stable/ref/settings/#std:setting-ALLOWED_HOSTS>`_
+    :std:setting:`django:ALLOWED_HOSTS`
 
 .. _production-avatar:
 
@@ -836,15 +968,16 @@ Japanese, Chinese or Arabic or for languages with accented letters.
 Django secret key
 +++++++++++++++++
 
-The ``SECRET_KEY`` setting is used by Django to sign cookies and you should
+The :setting:`SECRET_KEY` setting is used by Django to sign cookies and you should
 really use own value rather than using the one coming from example setup.
 
 You can generate new key using :file:`examples/generate-secret-key` shipped
 with Weblate.
 
-    .. seealso::
+.. seealso::
 
-        `SECRET_KEY setting documentation <https://docs.djangoproject.com/en/stable/ref/settings/#std:setting-SECRET_KEY>`_
+    :std:setting:`django:SECRET_KEY`
+
 
 .. _production-admin-files:
 
@@ -913,14 +1046,14 @@ configure it using following snippet:
 
 .. seealso::
 
-   `Django documentation on template loading <https://docs.djangoproject.com/en/stable/ref/templates/api/#django.template.loaders.cached.Loader>`_
+    :py:class:`django:django.template.loaders.cached.Loader`
 
 .. _production-cron:
 
 Running maintenance tasks
 +++++++++++++++++++++++++
 
-For optimal performace, it is good idea to run some maintenance tasks in the
+For optimal performance, it is good idea to run some maintenance tasks in the
 background.
 
 On Unix system, this can be scheduled using cron:
@@ -985,17 +1118,20 @@ use that for following paths:
 
 .. seealso::
 
-    `Deploying Django <https://docs.djangoproject.com/en/stable/howto/deployment/>`_,
-    `Deploying static files <https://docs.djangoproject.com/en/stable/howto/static-files/deployment/>`_
+    :doc:`django:howto/deployment/index`,
+    :doc:`django:howto/static-files/deployment`
 
-Sample configuration for Lighttpd
-+++++++++++++++++++++++++++++++++
+.. _csp:
 
-The configuration for Lighttpd web server might look like following (available
-as :file:`examples/lighttpd.conf`):
+Content security policy
++++++++++++++++++++++++
 
-.. literalinclude:: ../../examples/lighttpd.conf
-    :language: lighttpd
+Default Weblate configuration enables ``weblate.middleware.SecurityMiddleware``
+middleware which sets security related HTTP headers like ``Content-Security-Policy``
+or ``X-XSS-Protection``. These are set to work with Weblate and it's
+configuration, but this might clash with your customization. If that is your
+case, it is recommended to disable this middleware and set these headers
+manually.
 
 Sample configuration for Apache
 +++++++++++++++++++++++++++++++
@@ -1009,8 +1145,25 @@ mod_wsgi (available as :file:`examples/apache.conf`):
 This configuration is for Apache 2.4 and later. For earlier versions of Apache,
 replace `Require all granted` with `Allow from all`.
 
-Sample configuration for nginx
-++++++++++++++++++++++++++++++
+.. seealso::
+
+    :doc:`django:howto/deployment/wsgi/modwsgi`
+
+Sample configuration for Apache and gunicorn
+++++++++++++++++++++++++++++++++++++++++++++
+
+Following configuration runs Weblate in gunicorn and Apache 2.4
+(available as :file:`examples/apache.gunicorn.conf`):
+
+.. literalinclude:: ../../examples/apache.gunicorn.conf
+    :language: apache
+
+.. seealso::
+
+    :doc:`django:howto/deployment/wsgi/gunicorn`
+
+Sample configuration for nginx and uwsgi
+++++++++++++++++++++++++++++++++++++++++
 
 Following configuration runs Weblate as uwsgi under nginx webserver.
 
@@ -1023,6 +1176,10 @@ Configuration for uwsgi (also available as :file:`examples/weblate.uwsgi.ini`):
 
 .. literalinclude:: ../../examples/weblate.uwsgi.ini
     :language: ini
+
+.. seealso::
+
+    :doc:`django:howto/deployment/wsgi/uwsgi`
 
 Running Weblate under path
 ++++++++++++++++++++++++++

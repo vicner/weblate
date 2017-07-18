@@ -53,14 +53,14 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'Weblate'
-copyright = '2012 - 2016, Michal Čihař'
+copyright = '2012 - 2017 Michal Čihař'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 #
 # The short X.Y version.
-version = '2.11'
+version = '2.16'
 # The full version, including alpha/beta/rc tags.
 release = version
 
@@ -273,7 +273,7 @@ texinfo_documents = [
 epub_title = 'Weblate Documentationt'
 epub_author = 'Michal Čihař'
 epub_publisher = 'Michal Čihař'
-epub_copyright = '2012 - 2016, Michal Čihař'
+epub_copyright = copyright
 
 # The basename for the epub file. It defaults to the project name.
 #epub_basename = 'project'
@@ -342,7 +342,12 @@ epub_exclude_files = ['search.html']
 
 graphviz_output_format = 'svg'
 
-intersphinx_mapping = {'python': ('https://docs.python.org/3.5', None)}
+intersphinx_mapping = {
+    'python': ('https://docs.python.org/3.5', None),
+    'python2': ('https://docs.python.org/2.7', None),
+    'django': ('https://docs.djangoproject.com/en/stable/', 'https://docs.djangoproject.com/en/stable/_objects/'),
+    'psa': ('https://python-social-auth.readthedocs.io/en/latest/', None),
+}
 
 # Ignore missing targets for the http:obj <type>, it's how we declare the types
 # for input/output fields in the API docs.

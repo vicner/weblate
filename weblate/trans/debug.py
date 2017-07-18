@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,11 +15,9 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-'''
-Wrapper to include useful information in error mails.
-'''
+"""Wrapper to include useful information in error mails."""
 
 from django.views.debug import SafeExceptionReporterFilter
 from weblate import get_versions_list
@@ -29,8 +27,7 @@ class WeblateExceptionReporterFilter(SafeExceptionReporterFilter):
     def get_post_parameters(self, request):
         if hasattr(request, 'META'):
             meta = request.META
-            if (hasattr(request, 'user') and
-                    request.user.is_authenticated()):
+            if hasattr(request, 'user'):
                 meta['WEBLATE_USER'] = repr(request.user.username)
             else:
                 meta['WEBLATE_USER'] = ''

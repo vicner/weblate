@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from django.http import Http404
@@ -23,25 +23,22 @@ from django.http.response import HttpResponseServerError
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.core.exceptions import PermissionDenied
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import redirect, get_object_or_404
+from django.shortcuts import get_object_or_404
+from django.utils.http import urlencode
 from django.utils.translation import ugettext as _
 from django.utils.encoding import force_text
 from django.views.decorators.http import require_POST
 
-from six.moves.urllib.parse import urlencode
-
 from weblate.lang.models import Language
-from weblate.trans import messages
+from weblate.utils import messages
 from weblate.trans.views.helper import get_subproject
 from weblate.trans.models import Translation, Source, Unit
 from weblate.trans.forms import (
-    PriorityForm, CheckFlagsForm, ScreenshotUploadForm,
-    MatrixLanguageForm,
+    PriorityForm, CheckFlagsForm, MatrixLanguageForm,
 )
-from weblate.trans.permissions import (
-    can_edit_flags, can_edit_priority, can_upload_screenshot,
-)
-from weblate.trans.util import render
+from weblate.permissions.helpers import can_edit_flags, can_edit_priority
+from weblate.trans.util import render, redirect_next
+from weblate.utils.hash import checksum_to_hash
 
 
 def get_source(request, project, subproject):
@@ -57,16 +54,17 @@ def get_source(request, project, subproject):
 
 
 def review_source(request, project, subproject):
-    """
-    Listing of source strings to review.
-    """
+    """Listing of source strings to review."""
     obj, source = get_source(request, project, subproject)
 
     # Grab search type and page number
     rqtype = request.GET.get('type', 'all')
     limit = request.GET.get('limit', 50)
     page = request.GET.get('page', 1)
-    checksum = request.GET.get('checksum', '')
+    try:
+        id_hash = checksum_to_hash(request.GET.get('checksum', ''))
+    except ValueError:
+        id_hash = None
     ignored = 'ignored' in request.GET
     expand = False
     query_string = {'type': rqtype}
@@ -74,8 +72,8 @@ def review_source(request, project, subproject):
         query_string['ignored'] = 'true'
 
     # Filter units:
-    if checksum:
-        sources = source.unit_set.filter(checksum=checksum)
+    if id_hash:
+        sources = source.unit_set.filter(id_hash=id_hash)
         expand = True
     else:
         sources = source.unit_set.filter_type(rqtype, source, ignored)
@@ -108,9 +106,7 @@ def review_source(request, project, subproject):
 
 
 def show_source(request, project, subproject):
-    """
-    Show source strings summary and checks.
-    """
+    """Show source strings summary and checks."""
     obj, source = get_source(request, project, subproject)
 
     return render(
@@ -128,9 +124,7 @@ def show_source(request, project, subproject):
 @require_POST
 @login_required
 def edit_priority(request, pk):
-    """
-    Change source string priority.
-    """
+    """Change source string priority."""
     source = get_object_or_404(Source, pk=pk)
 
     if not can_edit_priority(request.user, source.subproject.project):
@@ -142,15 +136,13 @@ def edit_priority(request, pk):
         source.save()
     else:
         messages.error(request, _('Failed to change a priority!'))
-    return redirect(request.POST.get('next', source.get_absolute_url()))
+    return redirect_next(request.POST.get('next'), source.get_absolute_url())
 
 
 @require_POST
 @login_required
 def edit_check_flags(request, pk):
-    """
-    Change source string check flags.
-    """
+    """Change source string check flags."""
     source = get_object_or_404(Source, pk=pk)
 
     if not can_edit_flags(request.user, source.subproject.project):
@@ -162,28 +154,7 @@ def edit_check_flags(request, pk):
         source.save()
     else:
         messages.error(request, _('Failed to change check flags!'))
-    return redirect(request.POST.get('next', source.get_absolute_url()))
-
-
-@require_POST
-@login_required
-def upload_screenshot(request, pk):
-    """
-    Upload screenshot handler.
-    """
-    source = get_object_or_404(Source, pk=pk)
-
-    if not can_upload_screenshot(request.user, source.subproject.project):
-        raise PermissionDenied()
-
-    form = ScreenshotUploadForm(request.POST, request.FILES, instance=source)
-    if form.is_valid():
-        form.save()
-    else:
-        for error in form.errors:
-            for message in form.errors[error]:
-                messages.error(request, message)
-    return redirect(request.POST.get('next', source.get_absolute_url()))
+    return redirect_next(request.POST.get('next'), source.get_absolute_url())
 
 
 @login_required
@@ -226,10 +197,10 @@ def matrix_load(request, project, subproject):
     obj = get_subproject(request, project, subproject)
 
     try:
-        offset = int(request.GET.get('offset', None))
+        offset = int(request.GET.get('offset', ''))
     except ValueError:
         return HttpResponseServerError('Missing offset')
-    language_codes = request.GET.get('lang', None)
+    language_codes = request.GET.get('lang')
     if not language_codes or offset is None:
         return HttpResponseServerError('Missing lang')
 
@@ -245,7 +216,7 @@ def matrix_load(request, project, subproject):
         units = []
         for translation in translations:
             try:
-                units.append(translation.unit_set.get(checksum=unit.checksum))
+                units.append(translation.unit_set.get(id_hash=unit.id_hash))
             except Unit.DoesNotExist:
                 units.append(None)
 

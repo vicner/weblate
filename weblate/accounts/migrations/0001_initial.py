@@ -1,15 +1,8 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
-from django.apps import apps
 from django.db import models, migrations
 from django.conf import settings
-
-# App label has been changed in python-social-auth 0.2.20
-if 'social_auth' in apps.app_configs:
-    SOCIAL_AUTH = 'social_auth'
-else:
-    SOCIAL_AUTH = 'default'
 
 
 class Migration(migrations.Migration):
@@ -17,7 +10,7 @@ class Migration(migrations.Migration):
     dependencies = [
         ('trans', '0001_initial'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        (SOCIAL_AUTH, '0001_initial'),
+        ('social_django', '0001_initial'),
         ('lang', '0001_initial'),
     ]
 
@@ -50,7 +43,7 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.AutoField(verbose_name='ID', serialize=False, auto_created=True, primary_key=True)),
                 ('email', models.EmailField(max_length=75)),
-                ('social', models.ForeignKey(to='{0}.UserSocialAuth'.format(SOCIAL_AUTH))),
+                ('social', models.ForeignKey(to='social_django.UserSocialAuth')),
             ],
             options={
             },

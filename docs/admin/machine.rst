@@ -1,10 +1,7 @@
-Machine translation
-===================
-
 .. _machine-translation-setup:
 
-Machine translation setup
--------------------------
+Machine translation
+===================
 
 Weblate has builtin support for several machine translation services and it's
 up to administrator to enable them. The services have different terms of use, so
@@ -14,11 +11,11 @@ The individual services are enabled using :setting:`MACHINE_TRANSLATION_SERVICES
 The source language can be configured at :ref:`project`.
 
 Amagama
-+++++++
+-------
 
 Special installation of :ref:`tmserver` run by Virtaal authors.
 
-To enable this service, add ``trans.machine.tmserver.AmagamaTranslation`` to
+To enable this service, add ``weblate.trans.machine.tmserver.AmagamaTranslation`` to
 :setting:`MACHINE_TRANSLATION_SERVICES`.
 
 .. seealso:: 
@@ -28,17 +25,17 @@ To enable this service, add ``trans.machine.tmserver.AmagamaTranslation`` to
 .. _apertium:
 
 Apertium
-++++++++
+--------
 
 A free/open-source machine translation platform providing translation to
 limited set of languages.
 
 The recommended way how to use Apertium is to run own Apertium APy server.
 
-Alternatively you can use Apertium server, but you should get API key from
-them, otherwise number of requests is rate limited.
+Alternatively you can use https://www.apertium.org/apy if you don't expect 
+to make too many requests.
 
-To enable this service, add ``trans.machine.apertium.ApertiumAPYTranslation`` to
+To enable this service, add ``weblate.trans.machine.apertium.ApertiumAPYTranslation`` to
 :setting:`MACHINE_TRANSLATION_SERVICES`.
 
 .. seealso::
@@ -47,7 +44,7 @@ To enable this service, add ``trans.machine.apertium.ApertiumAPYTranslation`` to
     `Apertium APy documentation <http://wiki.apertium.org/wiki/Apertium-apy>`_
 
 Glosbe
-++++++
+------
 
 Free dictionary and translation memory for almost every living language.
 
@@ -55,7 +52,7 @@ API is free to use, regarding indicated data source license. There is a limit
 of call that may be done from one IP in fixed period of time, to prevent from
 abuse.
 
-To enable this service, add ``trans.machine.glosbe.GlosbeTranslation`` to
+To enable this service, add ``weblate.trans.machine.glosbe.GlosbeTranslation`` to
 :setting:`MACHINE_TRANSLATION_SERVICES`.
 
 .. seealso::
@@ -65,14 +62,14 @@ To enable this service, add ``trans.machine.glosbe.GlosbeTranslation`` to
 .. _google-translate:
 
 Google Translate
-++++++++++++++++
+----------------
 
 Machine translation service provided by Google.
 
 This service uses Translation API and you need to obtain API key and enable
 billing on Google API console.
 
-To enable this service, add ``trans.machine.google.GoogleTranslation`` to
+To enable this service, add ``weblate.trans.machine.google.GoogleTranslation`` to
 :setting:`MACHINE_TRANSLATION_SERVICES`.
 
 .. seealso::
@@ -83,7 +80,7 @@ To enable this service, add ``trans.machine.google.GoogleTranslation`` to
 .. _ms-translate:
 
 Microsoft Translator
-++++++++++++++++++++
+--------------------
 
 .. deprecated:: 2.10
 
@@ -96,19 +93,19 @@ Machine translation service provided by Microsoft, it's known as Bing Translator
 
 You need to register at Azure market and use Client ID and secret from there.
 
-To enable this service, add ``trans.machine.microsoft.MicrosoftTranslation`` to
+To enable this service, add ``weblate.trans.machine.microsoft.MicrosoftTranslation`` to
 :setting:`MACHINE_TRANSLATION_SERVICES`.
 
 .. seealso::
 
     :setting:`MT_MICROSOFT_ID`, :setting:`MT_MICROSOFT_SECRET`,
-    `Bing Translator <http://www.bing.com/translator/>`_,
+    `Bing Translator <https://www.bing.com/translator/>`_,
     `Azure datamarket <https://datamarket.azure.com/developer/applications/>`_
 
 .. _ms-cognitive-translate:
 
 Microsoft Cognitive Services Translator
-+++++++++++++++++++++++++++++++++++++++
+---------------------------------------
 
 .. versionadded:: 2.10
 
@@ -121,19 +118,19 @@ Cognitive Services.
 
 You need to register at Azure portal and use key you obtain there.
 
-To enable this service, add ``trans.machine.microsoft.MicrosoftCognitiveTranslation`` to
+To enable this service, add ``weblate.trans.machine.microsoft.MicrosoftCognitiveTranslation`` to
 :setting:`MACHINE_TRANSLATION_SERVICES`.
 
 .. seealso::
     
     :setting:`MT_MICROSOFT_COGNITIVE_KEY`,
     `Cognitive Services - Text Translation API <http://docs.microsofttranslator.com/text-translate.html>`_,
-    `Microsfot Azure Portal <https://portal.azure.com/>`_
+    `Microsoft Azure Portal <https://portal.azure.com/>`_
 
 .. _mymemory:
 
 MyMemory
-++++++++
+--------
 
 Huge translation memory with machine translation.
 
@@ -141,7 +138,7 @@ Free, anonymous usage is currently limited to 100 requests/day, or to 1000
 requests/day when you provide contact email in :setting:`MT_MYMEMORY_EMAIL`.
 you can also ask them for more.
 
-To enable this service, add ``trans.machine.mymemory.MyMemoryTranslation`` to
+To enable this service, add ``weblate.trans.machine.mymemory.MyMemoryTranslation`` to
 :setting:`MACHINE_TRANSLATION_SERVICES`.
 
 .. seealso::
@@ -149,12 +146,12 @@ To enable this service, add ``trans.machine.mymemory.MyMemoryTranslation`` to
     :setting:`MT_MYMEMORY_EMAIL`,
     :setting:`MT_MYMEMORY_USER`,
     :setting:`MT_MYMEMORY_KEY`,
-    `MyMemory website <http://mymemory.translated.net/>`_
+    `MyMemory website <https://mymemory.translated.net/>`_
 
 .. _tmserver:
 
 tmserver
-++++++++
+--------
 
 You can run your own translation memory server which is bundled with
 Translate-toolkit and let Weblate talk to it. You can also use it with
@@ -162,7 +159,7 @@ amaGama server, which is enhanced version of tmserver.
 
 First you will want to import some data to the translation memory:
 
-To enable this service, add ``trans.machine.tmserver.TMServerTranslation`` to
+To enable this service, add ``weblate.trans.machine.tmserver.TMServerTranslation`` to
 :setting:`MACHINE_TRANSLATION_SERVICES`.
 
 .. code-block:: sh
@@ -189,8 +186,25 @@ And configure Weblate to talk to it:
     `tmserver, a Translation Memory service <http://docs.translatehouse.org/projects/translate-toolkit/en/latest/commands/tmserver.html>`_,
     `Amagama Translation Memory <http://amagama.translatehouse.org/>`_
 
+.. _yandex-translate:
+
+Yandex Translate
+----------------
+
+Machine translation service provided by Yandex.
+
+This service uses Translation API and you need to obtain API key from Yandex.
+
+To enable this service, add ``weblate.trans.machine.yandex.YandexTranslation`` to
+:setting:`MACHINE_TRANSLATION_SERVICES`.
+
+.. seealso::
+
+    :setting:`MT_YANDEX_KEY`,
+    `Yandex Translate API <https://tech.yandex.com/translate/>`_
+
 Weblate
-+++++++
+-------
 
 Weblate can be source of machine translation as well. There are two services to
 provide you results - one does exact search for string, the other one finds all
@@ -200,8 +214,8 @@ First one is useful for full string translations, the second one for finding
 individual phrases or words to keep the translation consistent.
 
 To enable these services, add
-``trans.machine.weblatetm.WeblateSimilarTranslation`` (for similar string
-matching) and/or ``trans.machine.weblatetm.WeblateTranslation`` (for exact
+``weblate.trans.machine.weblatetm.WeblateSimilarTranslation`` (for similar string
+matching) and/or ``weblate.trans.machine.weblatetm.WeblateTranslation`` (for exact
 string matching) to :setting:`MACHINE_TRANSLATION_SERVICES`.
 
 .. note::

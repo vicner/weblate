@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
@@ -279,7 +279,7 @@ EXTRALANGS = (
         'mnk',
         'Mandinka',
         3,
-        '(n==0 ? 0 : n==1 ? 1 : 2)',
+        'n==0 ? 0 : n==1 ? 1 : 2',
     ),
     (
         'my',
@@ -356,6 +356,12 @@ EXTRALANGS = (
     (
         'zh_Hant',
         'Chinese (Traditional)',
+        1,
+        '0',
+    ),
+    (
+        'zh_Hant_HK',
+        'Chinese (Hong Kong)',
         1,
         '0',
     ),
@@ -504,6 +510,331 @@ EXTRALANGS = (
     (
         'sn',
         'Shona',
+        2,
+        'n != 1',
+    ),
+    (
+        'bar',
+        'Bavarian',
+        2,
+        'n != 1',
+    ),
+    (
+        'dv',
+        'Dhivehi',
+        2,
+        'n != 1',
+    ),
+    (
+        'aa',
+        'Afar',
+        2,
+        'n != 1',
+    ),
+    (
+        'ab',
+        'Abkhazian',
+        2,
+        'n != 1',
+    ),
+    (
+        'ae',
+        'Avestan',
+        2,
+        'n != 1',
+    ),
+    (
+        'av',
+        'Avaric',
+        2,
+        'n != 1',
+    ),
+    (
+        'bh',
+        'Bihari languages',
+        2,
+        'n != 1',
+    ),
+    (
+        'bi',
+        'Bislama',
+        2,
+        'n != 1',
+    ),
+    (
+        'bm',
+        'Bambara',
+        2,
+        'n != 1',
+    ),
+    (
+        'ce',
+        'Chechen',
+        2,
+        'n != 1',
+    ),
+    (
+        'co',
+        'Corsican',
+        2,
+        'n != 1',
+    ),
+    (
+        'cu',
+        'Old Church Slavonic',
+        2,
+        'n != 1',
+    ),
+    (
+        'cv',
+        'Chuvash',
+        2,
+        'n != 1',
+    ),
+    (
+        'ee',
+        'Ewe',
+        2,
+        'n != 1',
+    ),
+    (
+        'fj',
+        'Fijian',
+        2,
+        'n != 1',
+    ),
+    (
+        'gn',
+        'Guarani',
+        2,
+        'n != 1',
+    ),
+    (
+        'gv',
+        'Manx',
+        4,
+        '(n % 10 == 1) ? 0 : ((n % 10 == 2) ? 1 : ((n % 100 == 0 || n % 100 '
+        '== 20 || n % 100 == 40 || n % 100 == 60 || n % 100 == 80) ? 2 : 3))',
+    ),
+    (
+        'ho',
+        'Hiri Motu',
+        2,
+        'n != 1',
+    ),
+    (
+        'hz',
+        'Herero',
+        2,
+        'n != 1',
+    ),
+    (
+        'ie',
+        'Occidental',
+        2,
+        'n != 1',
+    ),
+    (
+        'ii',
+        'Nuosu',
+        2,
+        'n != 1',
+    ),
+    (
+        'ik',
+        'Inupiaq',
+        2,
+        'n != 1',
+    ),
+    (
+        'io',
+        'Ido',
+        2,
+        'n != 1',
+    ),
+    (
+        'iu',
+        'Inuktitut',
+        2,
+        'n != 1',
+    ),
+    (
+        'kg',
+        'Kongo',
+        2,
+        'n != 1',
+    ),
+    (
+        'ki',
+        'Gikuyu',
+        2,
+        'n != 1',
+    ),
+    (
+        'kj',
+        'Kwanyama',
+        2,
+        'n != 1',
+    ),
+    (
+        'kr',
+        'Kanuri',
+        2,
+        'n != 1',
+    ),
+    (
+        'kv',
+        'Komi',
+        2,
+        'n != 1',
+    ),
+    (
+        'lg',
+        'Ganda',
+        2,
+        'n != 1',
+    ),
+    (
+        'lu',
+        'Luba-Katanga',
+        2,
+        'n != 1',
+    ),
+    (
+        'mh',
+        'Marshallese',
+        2,
+        'n != 1',
+    ),
+    (
+        'mo',
+        'Moldovan',
+        2,
+        'n != 1',
+    ),
+    (
+        'na',
+        'Nauru',
+        2,
+        'n != 1',
+    ),
+    (
+        'nd',
+        'North Ndebele',
+        2,
+        'n != 1',
+    ),
+    (
+        'ng',
+        'Ndonga',
+        2,
+        'n != 1',
+    ),
+    (
+        'nr',
+        'South Ndebele',
+        2,
+        'n != 1',
+    ),
+    (
+        'nv',
+        'Navaho',
+        2,
+        'n != 1',
+    ),
+    (
+        'om',
+        'Oromo',
+        2,
+        'n != 1',
+    ),
+    (
+        'pi',
+        'Pali',
+        2,
+        'n != 1',
+    ),
+    (
+        'qu',
+        'Quechua',
+        2,
+        'n != 1',
+    ),
+    (
+        'rn',
+        'Rundi',
+        2,
+        'n != 1',
+    ),
+    (
+        'rue',
+        'Rusyn',
+        2,
+        'n != 1',
+    ),
+    (
+        'sg',
+        'Sango',
+        2,
+        'n != 1',
+    ),
+    (
+        'sm',
+        'Samoan',
+        2,
+        'n != 1',
+    ),
+    (
+        'sma',
+        'Southern Sami',
+        2,
+        'n != 1',
+    ),
+    (
+        'ss',
+        'Swati',
+        2,
+        'n != 1',
+    ),
+    (
+        'tn',
+        'Tswana',
+        2,
+        'n != 1',
+    ),
+    (
+        'to',
+        'Tonga (Tonga Islands)',
+        2,
+        'n != 1',
+    ),
+    (
+        'tw',
+        'Twi',
+        2,
+        'n != 1',
+    ),
+    (
+        'ty',
+        'Tahitian',
+        2,
+        'n != 1',
+    ),
+    (
+        'vo',
+        'Volapük',
+        2,
+        'n != 1',
+    ),
+    (
+        'xh',
+        'Xhosa',
+        2,
+        'n != 1',
+    ),
+    (
+        'za',
+        'Chuang',
         2,
         'n != 1',
     ),
@@ -657,6 +988,7 @@ LANGUAGE_NAME_FIXUPS = {
     'pa': 'Punjabi',
     'ca@valencia': 'Valencian',
     'ky': 'Kyrgyz',
+    'me': 'Montenegrin',
 }
 
 
@@ -698,6 +1030,8 @@ ONE_TWO_THREE_OTHER_PLURALS = (
 ONE_TWO_FEW_OTHER_PLURALS = (
     '(n==1 || n==11) ? 0 : (n==2 || n==12) ? 1 : (n > 2 && n < 20) ? 2 : 3',
     'n%100==1 ? 0 : n%100==2 ? 1 : n%100==3 || n%100==4 ? 2 : 3',
+    '(n % 10 == 1) ? 0 : ((n % 10 == 2) ? 1 : ((n % 100 == 0 || n % 100 == 20'
+    ' || n % 100 == 40 || n % 100 == 60 || n % 100 == 80) ? 2 : 3))',
 )
 
 ONE_TWO_FEW_MANY_OTHER_PLURALS = (
@@ -707,7 +1041,9 @@ ONE_TWO_FEW_MANY_OTHER_PLURALS = (
 
 ONE_FEW_MANY_OTHER_PLURALS = (
     'n==1 ? 0 : n==0 || ( n%100>1 && n%100<11) ? 1 : '
-    '(n%100>10 && n%100<20 ) ? 2 : 3'
+    '(n%100>10 && n%100<20 ) ? 2 : 3',
+    'n==1 ? 0 : n%10>=2 && (n%100<10 || n%100>=20) ? 1 : '
+    'n%10==0 || (n%100>10 && n%100<20) ? 2 : 3',
 )
 
 ONE_OTHER_ZERO_PLURALS = (
@@ -828,9 +1164,11 @@ PLURAL_NAMES = {
 LOCALE_ALIASES = {
     # Windows
     'arabic': 'ar',
-    'chinese_chs': 'zh_CN',
-    'chinese_zh': 'zh_TW',
+    'braz_por': 'pt_BR',
+    'chinese_chs': 'zh_Hans',
+    'chinese_zh': 'zh_Hant',
     'dutch_be': 'nl_BE',
+    'english': 'en',
     'english-uk': 'en_GB',
     'portuguese_br': 'pt_BR',
     'portuguese_portugal': 'pt_PT',
@@ -842,6 +1180,7 @@ LOCALE_ALIASES = {
     'spanish': 'es',
     'german': 'de',
     'french': 'fr',
+    'polish': 'pl',
     # Android
     'be-rby': 'be_Latn',
     # Misc invalid codes
@@ -853,6 +1192,8 @@ LOCALE_ALIASES = {
     'jp': 'ja',
     'ba_ck': 'ba',
     'ca_ps': 'ca',
+    'by': 'be',
+    'ua': 'uk',
     # Old locale codes
     'iw': 'he',
     'ji': 'yi',
@@ -870,11 +1211,17 @@ LOCALE_ALIASES = {
     'uz@latin': 'uz_Latn',
     'zh_cn': 'zh_Hans',
     'zh_tw': 'zh_Hant',
+    'zh_hk': 'zh_Hant_HK',
     # ios translations
     'base': 'en',
+    # Country codes used instead of language,
+    # we can map only those which do not collide with existing language code
+    'dk': 'da',
+    'gr': 'el',
+    'rs': 'sr',
 }
 
 # List of languages we do not want to import from translate-toolkit
 SKIP_TRANSLATE_TOOLKIT = frozenset((
-    'zh_CN', 'zh_TW',
+    'zh_CN', 'zh_TW', 'zh_HK',
 ))

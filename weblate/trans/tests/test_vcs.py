@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
@@ -23,12 +23,11 @@ from __future__ import unicode_literals
 import tempfile
 import shutil
 import os.path
-from unittest import SkipTest
+from unittest import SkipTest, TestCase
 
-from django.test import TestCase
 from django.utils import timezone
 
-from weblate.trans.tests.test_models import RepoTestCase
+from weblate.trans.tests.utils import RepoTestMixin
 from weblate.trans.vcs import GitRepository, HgRepository, \
     RepositoryException, GitWithGerritRepository, GithubRepository, \
     SubversionRepository
@@ -82,7 +81,7 @@ class RepositoryTest(TestCase):
         self.assertTrue(GitTestRepository.is_supported())
 
 
-class VCSGitTest(RepoTestCase):
+class VCSGitTest(TestCase, RepoTestMixin):
     _tempdir = None
     _class = GitRepository
     _vcs = 'git'
@@ -93,6 +92,8 @@ class VCSGitTest(RepoTestCase):
         super(VCSGitTest, self).setUp()
         if not self._class.is_supported():
             raise SkipTest('Not supported')
+
+        self.clone_test_repos()
 
         self._tempdir = tempfile.mkdtemp()
         self.repo = self.clone_repo(self._tempdir)
@@ -120,7 +121,7 @@ class VCSGitTest(RepoTestCase):
             with open(os.path.join(tempdir, filename), 'w') as handle:
                 handle.write('SECOND TEST FILE\n')
 
-            with repo.lock():
+            with repo.lock:
                 # Commit it
                 repo.commit(
                     'Test commit',
@@ -146,11 +147,11 @@ class VCSGitTest(RepoTestCase):
         )
 
     def test_update_remote(self):
-        with self.repo.lock():
+        with self.repo.lock:
             self.repo.update_remote()
 
     def test_push(self):
-        with self.repo.lock():
+        with self.repo.lock:
             self.repo.push()
 
     def test_push_commit(self):
@@ -158,12 +159,12 @@ class VCSGitTest(RepoTestCase):
         self.test_push()
 
     def test_reset(self):
-        with self.repo.lock():
+        with self.repo.lock:
             original = self.repo.last_revision
             self.repo.reset()
             self.assertEqual(original, self.repo.last_revision)
         self.test_commit()
-        with self.repo.lock():
+        with self.repo.lock:
             self.assertNotEqual(original, self.repo.last_revision)
             self.repo.reset()
             self.assertEqual(original, self.repo.last_revision)
@@ -212,12 +213,12 @@ class VCSGitTest(RepoTestCase):
 
     def test_merge(self):
         self.test_update_remote()
-        with self.repo.lock():
+        with self.repo.lock:
             self.repo.merge()
 
     def test_rebase(self):
         self.test_update_remote()
-        with self.repo.lock():
+        with self.repo.lock:
             self.repo.rebase()
 
     def test_status(self):
@@ -302,7 +303,7 @@ class VCSGitTest(RepoTestCase):
 
         oldrev = self.repo.last_revision
         # Commit it
-        with self.repo.lock():
+        with self.repo.lock:
             self.repo.commit(
                 'Test commit',
                 'Foo Bar <foo@bar.com>',
@@ -327,7 +328,7 @@ class VCSGitTest(RepoTestCase):
         )
 
         # Check invalid commit
-        with self.repo.lock():
+        with self.repo.lock:
             self.assertRaises(
                 RepositoryException,
                 self.repo.commit,
@@ -340,7 +341,7 @@ class VCSGitTest(RepoTestCase):
         self.assertTrue(
             os.path.exists(os.path.join(self._tempdir, 'po/cs.po'))
         )
-        with self.repo.lock():
+        with self.repo.lock:
             self.repo.remove(['po/cs.po'], 'Remove Czech translation')
         self.assertFalse(
             os.path.exists(os.path.join(self._tempdir, 'po/cs.po'))
@@ -354,7 +355,7 @@ class VCSGitTest(RepoTestCase):
         )
 
     def test_configure_remote(self):
-        with self.repo.lock():
+        with self.repo.lock:
             self.repo.configure_remote('pullurl', 'pushurl', 'branch')
             self.assertEqual(
                 self.repo.get_config('remote.origin.url'),
@@ -374,7 +375,7 @@ class VCSGitTest(RepoTestCase):
             )
 
     def test_configure_remote_no_push(self):
-        with self.repo.lock():
+        with self.repo.lock:
             if self._sets_push:
                 self.repo.configure_remote('pullurl', '', 'branch')
                 self.assertEqual(
@@ -389,7 +390,7 @@ class VCSGitTest(RepoTestCase):
 
     def test_configure_branch(self):
         # Existing branch
-        with self.repo.lock():
+        with self.repo.lock:
             self.repo.configure_branch(self._class.default_branch)
 
             self.assertRaises(

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from django.utils.translation import ugettext as _
@@ -23,16 +23,18 @@ from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.views.decorators.http import require_POST
 
-from weblate.trans import messages
+from weblate.utils import messages
 from weblate.trans.views.helper import (
     get_project, get_subproject, get_translation
 )
-from weblate.trans.permissions import (
+from weblate.permissions.helpers import (
     can_lock_subproject, can_lock_translation
 )
 
 
+@require_POST
 @login_required
 def update_lock(request, project, subproject, lang):
     obj = get_translation(request, project, subproject, lang)
@@ -50,6 +52,7 @@ def update_lock(request, project, subproject, lang):
     return JsonResponse(data=response)
 
 
+@require_POST
 @login_required
 def lock_translation(request, project, subproject, lang):
     obj = get_translation(request, project, subproject, lang)
@@ -64,6 +67,7 @@ def lock_translation(request, project, subproject, lang):
     return redirect(obj)
 
 
+@require_POST
 @login_required
 def unlock_translation(request, project, subproject, lang):
     obj = get_translation(request, project, subproject, lang)
@@ -81,6 +85,7 @@ def unlock_translation(request, project, subproject, lang):
     return redirect(obj)
 
 
+@require_POST
 @login_required
 def lock_subproject(request, project, subproject):
     obj = get_subproject(request, project, subproject)
@@ -100,6 +105,7 @@ def lock_subproject(request, project, subproject):
     return redirect(obj)
 
 
+@require_POST
 @login_required
 def unlock_subproject(request, project, subproject):
     obj = get_subproject(request, project, subproject)
@@ -107,7 +113,7 @@ def unlock_subproject(request, project, subproject):
     if not can_lock_subproject(request.user, obj.project):
         raise PermissionDenied()
 
-    obj.do_unlock(request.user)
+    obj.do_lock(request.user, False)
 
     messages.success(
         request,
@@ -117,6 +123,7 @@ def unlock_subproject(request, project, subproject):
     return redirect(obj)
 
 
+@require_POST
 @login_required
 def lock_project(request, project):
     obj = get_project(request, project)
@@ -137,6 +144,7 @@ def lock_project(request, project):
     return redirect(obj)
 
 
+@require_POST
 @login_required
 def unlock_project(request, project):
     obj = get_project(request, project)
@@ -145,7 +153,7 @@ def unlock_project(request, project):
         raise PermissionDenied()
 
     for subproject in obj.subproject_set.all():
-        subproject.do_unlock(request.user)
+        subproject.do_lock(request.user, False)
 
     messages.success(
         request,

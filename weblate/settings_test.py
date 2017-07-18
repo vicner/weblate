@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 #
@@ -25,7 +25,7 @@
 import warnings
 import os
 
-from weblate.settings_example import *
+from weblate.settings_example import *  # noqa
 
 if 'CI_DATABASE' in os.environ:
     if os.environ['CI_DATABASE'] == 'mysql':
@@ -35,6 +35,7 @@ if 'CI_DATABASE' in os.environ:
         DATABASES['default']['PASSWORD'] = ''
         DATABASES['default']['OPTIONS'] = {
             'init_command': 'SET NAMES utf8, wait_timeout=28800',
+            'charset': 'utf8',
         }
     elif os.environ['CI_DATABASE'] == 'postgresql':
         DATABASES['default']['ENGINE'] = \
@@ -42,6 +43,14 @@ if 'CI_DATABASE' in os.environ:
         DATABASES['default']['NAME'] = 'weblate'
         DATABASES['default']['USER'] = 'postgres'
         DATABASES['default']['PASSWORD'] = ''
+    else:
+        DATABASES['default']['TEST'] = {'NAME': 'weblate_test.db'}
+elif 'SCRUTINIZER' in os.environ:
+    DATABASES['default']['ENGINE'] = \
+        'django.db.backends.postgresql_psycopg2'
+    DATABASES['default']['NAME'] = 'scrutinizer'
+    DATABASES['default']['USER'] = 'scrutinizer'
+    DATABASES['default']['PASSWORD'] = 'scrutinizer'
 
 
 # Configure admins
@@ -59,11 +68,21 @@ LOGGING = {
             '()': 'django.utils.log.RequireDebugFalse'
         }
     },
+    'formatters': {
+        'simple': {
+            'format': '%(levelname)s %(message)s'
+        },
+    },
     'handlers': {
         'mail_admins': {
             'level': 'ERROR',
             'filters': ['require_debug_false'],
             'class': 'django.utils.log.AdminEmailHandler'
+        },
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple'
         },
     },
     'loggers': {
@@ -75,7 +94,11 @@ LOGGING = {
         'weblate': {
             'handlers': [],
             'level': 'ERROR',
-        }
+        },
+        'social': {
+            'handlers': [],
+            'level': 'ERROR',
+        },
     }
 }
 
@@ -86,12 +109,13 @@ SESSION_COOKIE_HTTPONLY = False
 INSTALLED_APPS += (
     'weblate.billing',
     'weblate.gitexport',
+    'weblate.legal',
 )
 
 # Test GitHub auth
 AUTHENTICATION_BACKENDS = (
-    'weblate.accounts.auth.EmailAuth',
-    'social.backends.github.GithubOAuth2',
+    'social_core.backends.email.EmailAuth',
+    'social_core.backends.github.GithubOAuth2',
     'weblate.accounts.auth.WeblateUserBackend',
 )
 

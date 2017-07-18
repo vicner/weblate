@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,46 +15,37 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
 
+from django.conf import settings
+
 from weblate.trans.machine.base import MachineTranslation
-from weblate import appsettings
 
 
 class MyMemoryTranslation(MachineTranslation):
-    '''
-    MyMemory machine translation support.
-    '''
+    """MyMemory machine translation support."""
     name = 'MyMemory'
 
     def convert_language(self, language):
-        '''
-        Converts language to service specific code.
-        '''
+        """Convert language to service specific code."""
         return language.replace('_', '-').lower()
 
     def is_supported(self, source, language):
-        '''
-        Checks whether given language combination is supported.
-        '''
+        """Check whether given language combination is supported."""
         return self.lang_supported(source) and self.lang_supported(language)
 
     @staticmethod
     def lang_supported(language):
-        '''
-        Almost any language without modifiers is supported.
-        '''
+        """Almost any language without modifiers is supported."""
         if language in ('ia', 'tt', 'ug'):
             return False
         return '@' not in language and len(language) == 2
 
     def format_match(self, match):
-        '''
-        Reformats match to (translation, quality) tuple.
-        '''
+        """Reformat match to (translation, quality) tuple."""
         if isinstance(match['quality'], int):
             quality = match['quality']
         elif match['quality'] is not None and match['quality'].isdigit():
@@ -63,7 +54,7 @@ class MyMemoryTranslation(MachineTranslation):
             quality = 0
 
         if match['last-updated-by'] != '':
-            source = '%s (%s)' % (
+            source = '{0} ({1})'.format(
                 self.name,
                 match['last-updated-by']
             )
@@ -78,22 +69,20 @@ class MyMemoryTranslation(MachineTranslation):
         )
 
     def download_translations(self, source, language, text, unit, user):
-        '''
-        Downloads list of possible translations from MyMemory.
-        '''
+        """Download list of possible translations from MyMemory."""
         args = {
             'q': text.split('. ')[0][:500],
-            'langpair': '%s|%s' % (source, language),
+            'langpair': '{0}|{1}'.format(source, language),
         }
-        if appsettings.MT_MYMEMORY_EMAIL is not None:
-            args['de'] = appsettings.MT_MYMEMORY_EMAIL
-        if appsettings.MT_MYMEMORY_USER is not None:
-            args['user'] = appsettings.MT_MYMEMORY_USER
-        if appsettings.MT_MYMEMORY_KEY is not None:
-            args['key'] = appsettings.MT_MYMEMORY_KEY
+        if settings.MT_MYMEMORY_EMAIL is not None:
+            args['de'] = settings.MT_MYMEMORY_EMAIL
+        if settings.MT_MYMEMORY_USER is not None:
+            args['user'] = settings.MT_MYMEMORY_USER
+        if settings.MT_MYMEMORY_KEY is not None:
+            args['key'] = settings.MT_MYMEMORY_KEY
 
         response = self.json_status_req(
-            'http://mymemory.translated.net/api/get',
+            'https://mymemory.translated.net/api/get',
             **args
         )
 

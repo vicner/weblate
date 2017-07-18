@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,28 +15,20 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
-from django.utils.translation import ugettext_lazy as _
 
-from weblate.trans.fields import ScreenshotField
 from weblate.trans.validators import validate_check_flags
-
-PRIORITY_CHOICES = (
-    (60, _('Very high')),
-    (80, _('High')),
-    (100, _('Medium')),
-    (120, _('Low')),
-    (140, _('Very low')),
-)
+from weblate.trans.util import PRIORITY_CHOICES
 
 
 @python_2_unicode_compatible
 class Source(models.Model):
-    checksum = models.CharField(max_length=40)
+    id_hash = models.BigIntegerField(db_index=True)
     subproject = models.ForeignKey('SubProject')
     timestamp = models.DateTimeField(auto_now_add=True)
     priority = models.IntegerField(
@@ -48,21 +40,15 @@ class Source(models.Model):
         validators=[validate_check_flags],
         blank=True,
     )
-    screenshot = ScreenshotField(
-        verbose_name=_('Screenshot showing usage of this string'),
-        help_text=_('Upload JPEG or PNG images up to 2000x2000 pixels.'),
-        upload_to='screenshots/',
-        blank=True,
-    )
 
     class Meta(object):
         permissions = (
             ('edit_priority', "Can edit priority"),
             ('edit_flags', "Can edit check flags"),
-            ('upload_screenshot', 'Can upload screenshot'),
         )
         app_label = 'trans'
-        unique_together = ('checksum', 'subproject')
+        unique_together = ('id_hash', 'subproject')
+        ordering = ('id', )
 
     def __init__(self, *args, **kwargs):
         super(Source, self).__init__(*args, **kwargs)
@@ -70,7 +56,7 @@ class Source(models.Model):
         self.check_flags_modified = False
 
     def __str__(self):
-        return 'src:{0}'.format(self.checksum)
+        return 'src:{0}'.format(self.id_hash)
 
     def save(self, force_insert=False, **kwargs):
         """
@@ -85,6 +71,24 @@ class Source(models.Model):
             self.priority_modified = (old.priority != self.priority)
             self.check_flags_modified = (old.check_flags != self.check_flags)
         super(Source, self).save(force_insert, **kwargs)
+
+    @property
+    def unit(self):
+        try:
+            translation = self.subproject.translation_set.all()[0]
+        except IndexError:
+            return None
+        try:
+            return translation.unit_set.get(id_hash=self.id_hash)
+        except ObjectDoesNotExist:
+            return None
+
+    def units(self):
+        from weblate.trans.models import Unit
+        return Unit.objects.filter(
+            id_hash=self.id_hash,
+            translation__subproject=self.subproject
+        )
 
     @models.permalink
     def get_absolute_url(self):

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,11 +15,12 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
-from itertools import chain
+
+import re
 
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Fieldset, HTML
@@ -27,44 +28,79 @@ from crispy_forms.layout import Layout, Fieldset, HTML
 from django import forms
 from django.utils.html import escape
 from django.utils.translation import ugettext_lazy as _, pgettext
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, password_validation
+from django.contrib.auth import update_session_auth_hash
+from django.contrib.auth.forms import SetPasswordForm as DjangoSetPasswordForm
+from django.contrib.auth.hashers import check_password
 from django.contrib.auth.models import User
+from django.core.validators import validate_email
+from django.db.models import Q
+from django.forms.widgets import EmailInput
+from django.middleware.csrf import rotate_token
 from django.utils.encoding import force_text
 
-from weblate.accounts.models import Profile, VerifiedEmail
+from weblate.accounts.auth import try_get_user
+from weblate.accounts.models import Profile, get_all_user_mails, AuditLog
 from weblate.accounts.captcha import MathCaptcha
+from weblate.accounts.notifications import notify_account_activity
+from weblate.accounts.pipeline import USERNAME_RE
+from weblate.accounts.ratelimit import reset_rate_limit, check_rate_limit
 from weblate.lang.models import Language
 from weblate.trans.models import Project
 from weblate.trans.util import sort_choices
+from weblate.utils import messages
+from weblate.utils.validators import validate_fullname
 from weblate.logger import LOGGER
 
 
-class UniqueEmailMixin(object):
-    def clean_email(self):
-        """
-        Validate that the supplied email address is unique for the
-        site.
+# Reject some suspicious email addresses, based on checks enforced by Exim MTA
+EMAIL_BLACKLIST = re.compile(r'^([./|]|.*([@%!`#&?]|/\.\./))')
 
-        """
-        if User.objects.filter(email__iexact=self.cleaned_data['email']):
-            raise forms.ValidationError(
-                _(
-                    "This email address is already in use. "
-                    "Please supply a different email address."
+
+class UniqueEmailMixin(object):
+    validate_unique_mail = False
+
+    def clean_email(self):
+        """Validate that the supplied email address is unique for the site. """
+        self.cleaned_data['email_user'] = None
+        mail = self.cleaned_data['email']
+        users = User.objects.filter(
+            Q(social_auth__verifiedemail__email__iexact=mail) |
+            Q(email__iexact=mail)
+        )
+        if users.exists():
+            self.cleaned_data['email_user'] = users[0]
+            if self.validate_unique_mail:
+                raise forms.ValidationError(
+                    _(
+                        "This email address is already in use. "
+                        "Please supply a different email address."
+                    )
                 )
-            )
         return self.cleaned_data['email']
 
 
-class NoStripEmailField(forms.EmailField):
-    """
-    Email field which does no stripping.
-    """
+class PasswordField(forms.CharField):
+    """Password field."""
+    def __init__(self, *args, **kwargs):
+        kwargs['widget'] = forms.PasswordInput(render_value=False)
+        kwargs['max_length'] = 256
+        super(PasswordField, self).__init__(*args, **kwargs)
+
+
+class EmailField(forms.CharField):
+    """Slightly restricted EmailField.
+
+    We blacklist some additional local parts."""
+    widget = EmailInput
+    default_validators = [validate_email]
+
     def clean(self, value):
-        value = self.to_python(value)
-        # We call super-super method to skip default EmailField behavior
-        # pylint: disable=E1003
-        return super(forms.EmailField, self).clean(value)
+        value = super(EmailField, self).clean(value)
+        user_part = value.rsplit('@', 1)[0]
+        if EMAIL_BLACKLIST.match(user_part):
+            raise forms.ValidationError(_('Enter a valid email address.'))
+        return value
 
 
 class UsernameField(forms.RegexField):
@@ -74,7 +110,7 @@ class UsernameField(forms.RegexField):
             'numbers or the following characters: @ . + - _'
         )
         kwargs['max_length'] = 30
-        kwargs['regex'] = r'^[\w.@+-]+$'
+        kwargs['regex'] = USERNAME_RE
         kwargs['help_text'] = help_text
         kwargs['label'] = _('Username')
         kwargs['error_messages'] = {
@@ -86,13 +122,15 @@ class UsernameField(forms.RegexField):
         super(UsernameField, self).__init__(*args, **kwargs)
 
     def clean(self, value):
-        '''
-        Username validation, requires unique name.
-        '''
-        if value is not None:
-            existing = User.objects.filter(
-                username__iexact=value
+        """Username validation, requires unique name."""
+        if value is None:
+            return
+        if value.startswith('.'):
+            raise forms.ValidationError(
+                _('Username can not start with full stop.')
             )
+        if value is not None:
+            existing = User.objects.filter(username=value)
             if existing.exists() and value != self.valid:
                 raise forms.ValidationError(
                     _(
@@ -104,25 +142,28 @@ class UsernameField(forms.RegexField):
         return super(UsernameField, self).clean(value)
 
 
+class FullNameField(forms.CharField):
+    default_validators = [validate_fullname]
+
+    def __init__(self, *args, **kwargs):
+        # The Django User model limit is 30 chars, this should
+        # be raised if we switch to custom User model
+        kwargs['max_length'] = 30
+        kwargs['label'] = _('Full name')
+        kwargs['required'] = True
+        super(FullNameField, self).__init__(*args, **kwargs)
+
+
 class SortedSelectMixin(object):
-    '''
-    Mixin for Select widgets to sort choices alphabetically.
-    '''
-    def render_options(self, choices, selected_choices=None):
-        '''
-        Renders sorted options.
-        '''
-        # Django 1.10 compatibility:
-        # the choices parameter was removed there
-        if selected_choices is None:
-            selected_choices = choices
-            choices = []
+    """Mixin for Select widgets to sort choices alphabetically."""
+    def render_options(self, selected_choices):
+        """Render sorted options."""
         # Normalize to strings.
         selected_choices = set(force_text(v) for v in selected_choices)
         output = []
 
         # Actually sort values
-        all_choices = sort_choices(list(chain(self.choices, choices)))
+        all_choices = sort_choices(list(self.choices))
 
         # Stolen from Select.render_options
         for option_value, option_label in all_choices:
@@ -135,21 +176,15 @@ class SortedSelectMixin(object):
 
 
 class SortedSelectMultiple(SortedSelectMixin, forms.SelectMultiple):
-    '''
-    Wrapper class to sort choices alphabetically.
-    '''
+    """Wrapper class to sort choices alphabetically."""
 
 
 class SortedSelect(SortedSelectMixin, forms.Select):
-    '''
-    Wrapper class to sort choices alphabetically.
-    '''
+    """Wrapper class to sort choices alphabetically."""
 
 
 class ProfileForm(forms.ModelForm):
-    '''
-    User profile editing.
-    '''
+    """User profile editing."""
     class Meta(object):
         model = Profile
         fields = (
@@ -172,9 +207,7 @@ class ProfileForm(forms.ModelForm):
 
 
 class SubscriptionForm(forms.ModelForm):
-    '''
-    User subscription management.
-    '''
+    """User subscription management."""
     class Meta(object):
         model = Profile
         fields = (
@@ -193,9 +226,7 @@ class SubscriptionForm(forms.ModelForm):
 
 
 class SubscriptionSettingsForm(forms.ModelForm):
-    '''
-    User subscription management.
-    '''
+    """User subscription management."""
     class Meta(object):
         model = Profile
         fields = Profile.SUBSCRIPTION_FIELDS
@@ -203,6 +234,7 @@ class SubscriptionSettingsForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super(SubscriptionSettingsForm, self).__init__(*args, **kwargs)
         self.helper = FormHelper()
+        self.helper.form_tag = False
         self.helper.layout = Layout(
             Fieldset(
                 _('Component wide notifications'),
@@ -229,22 +261,20 @@ class SubscriptionSettingsForm(forms.ModelForm):
 
 
 class UserSettingsForm(forms.ModelForm):
-    '''
-    User settings form.
-    '''
+    """User settings form."""
     class Meta(object):
         model = Profile
         fields = (
             'hide_completed',
             'secondary_in_zen',
             'hide_source_secondary',
+            'editor_link',
+            'special_chars',
         )
 
 
 class DashboardSettingsForm(forms.ModelForm):
-    '''
-    Dashboard settings form.
-    '''
+    """Dashboard settings form."""
     class Meta(object):
         model = Profile
         fields = (
@@ -252,21 +282,9 @@ class DashboardSettingsForm(forms.ModelForm):
             'dashboard_component_list',
         )
 
-    def clean(self):
-        '''
-        Check if component list is selected when required.
-        '''
-        if self.cleaned_data.get('dashboard_view') == \
-                Profile.DASHBOARD_COMPONENT_LIST and \
-                self.cleaned_data.get('dashboard_component_list') is None:
-            raise forms.ValidationError(
-                _("Component list must be selected when used as default."))
-
 
 class UserForm(forms.ModelForm):
-    '''
-    User information form.
-    '''
+    """User information form."""
     username = UsernameField()
     email = forms.ChoiceField(
         label=_('E-mail'),
@@ -278,6 +296,7 @@ class UserForm(forms.ModelForm):
         ),
         required=True
     )
+    first_name = FullNameField()
 
     class Meta(object):
         model = User
@@ -291,25 +310,29 @@ class UserForm(forms.ModelForm):
 
         super(UserForm, self).__init__(*args, **kwargs)
 
-        verified_mails = VerifiedEmail.objects.filter(
-            social__user=self.instance
-        )
-        emails = set([x.email for x in verified_mails])
-        emails.add(self.instance.email)
+        emails = get_all_user_mails(self.instance)
 
-        self.fields['first_name'].required = True
-        self.fields['first_name'].label = _('Full name')
-        self.fields['email'].choices = [(x, x) for x in emails]
+        self.fields['email'].choices = [(x, x) for x in sorted(emails)]
         self.fields['username'].valid = self.instance.username
 
 
 class ContactForm(forms.Form):
-    '''
-    Form for contacting site owners.
-    '''
-    subject = forms.CharField(label=_('Subject'), required=True)
-    name = forms.CharField(label=_('Your name'), required=True)
-    email = forms.EmailField(label=_('Your email'), required=True)
+    """Form for contacting site owners."""
+    subject = forms.CharField(
+        label=_('Subject'),
+        required=True,
+        max_length=100
+    )
+    name = forms.CharField(
+        label=_('Your name'),
+        required=True,
+        max_length=30
+    )
+    email = EmailField(
+        label=_('Your email'),
+        required=True,
+        max_length=254
+    )
     message = forms.CharField(
         label=_('Message'),
         required=True,
@@ -317,27 +340,25 @@ class ContactForm(forms.Form):
             'Please contact us in English, otherwise we might '
             'be unable to understand your request.'
         ),
+        max_length=2000,
         widget=forms.Textarea
     )
     content = forms.CharField(required=False)
 
     def clean_content(self):
-        '''
-        Check if content is empty.
-        '''
+        """Check if content is empty."""
         if self.cleaned_data['content'] != '':
             raise forms.ValidationError('Invalid value')
         return ''
 
 
 class EmailForm(forms.Form, UniqueEmailMixin):
-    '''
-    Email change form.
-    '''
+    """Email change form."""
     required_css_class = "required"
     error_css_class = "error"
 
-    email = NoStripEmailField(
+    email = EmailField(
+        strip=False,
         max_length=75,
         label=_("E-mail"),
         help_text=_('Activation email will be sent here.'),
@@ -345,78 +366,139 @@ class EmailForm(forms.Form, UniqueEmailMixin):
     content = forms.CharField(required=False)
 
     def clean_content(self):
-        '''
-        Check if content is empty.
-        '''
+        """Check if content is empty."""
         if self.cleaned_data['content'] != '':
             raise forms.ValidationError('Invalid value')
         return ''
 
 
 class RegistrationForm(EmailForm):
-    '''
-    Registration form.
-    '''
+    """Registration form."""
     required_css_class = "required"
     error_css_class = "error"
 
     username = UsernameField()
-    first_name = forms.CharField(label=_('Full name'))
+    first_name = FullNameField()
     content = forms.CharField(required=False)
 
+    def __init__(self, request=None, *args, **kwargs):
+        """
+        The 'request' parameter is set for custom auth use by subclasses.
+        The form data comes in via the standard 'data' kwarg.
+        """
+        self.request = request
+        super(RegistrationForm, self).__init__(*args, **kwargs)
+
     def clean_content(self):
-        '''
-        Check if content is empty.
-        '''
+        """Check if content is empty."""
         if self.cleaned_data['content'] != '':
             raise forms.ValidationError('Invalid value')
         return ''
 
+    def clean(self):
+        if not check_rate_limit(self.request):
+            raise forms.ValidationError(
+                _('Too many registration attempts!')
+            )
+        return self.cleaned_data
 
-class CaptchaRegistrationForm(RegistrationForm):
-    '''
-    Registration form with captcha protection.
-    '''
-    captcha = forms.IntegerField(required=True)
-    captcha_id = forms.CharField(widget=forms.HiddenInput)
 
-    def __init__(self, data=None, *args, **kwargs):
-        super(CaptchaRegistrationForm, self).__init__(
-            data,
-            *args,
-            **kwargs
+class SetPasswordForm(DjangoSetPasswordForm):
+    new_password1 = PasswordField(
+        label=_("New password"),
+        help_text=password_validation.password_validators_help_text_html(),
+    )
+    new_password2 = PasswordField(
+        label=_("New password confirmation"),
+    )
+
+    def clean(self):
+        if 'new_password2' not in self.cleaned_data:
+            return self.cleaned_data
+        new_password = self.cleaned_data['new_password2']
+        passwords = []
+        if self.user.has_usable_password():
+            passwords.append(self.user.password)
+
+        for log in AuditLog.objects.get_password(user=self.user):
+            params = log.get_params()
+            if 'password' in params:
+                passwords.append(params['password'])
+
+        for password in passwords:
+            if check_password(new_password, password):
+                raise forms.ValidationError(_(
+                    'You can not change password to the one you were using!'
+                ))
+        return self.cleaned_data
+
+    # pylint: disable=W0222
+    def save(self, request):
+        notify_account_activity(
+            self.user,
+            request,
+            'password',
+            password=self.user.password
+        )
+        # Change the password
+        password = self.cleaned_data["new_password1"]
+        self.user.set_password(password)
+        self.user.save(update_fields=['password'])
+
+        # Updating the password logs out all other sessions for the user
+        # except the current one.
+        update_session_auth_hash(request, self.user)
+
+        # Change key for current session
+        request.session.cycle_key()
+
+        messages.success(
+            request,
+            _('Your password has been changed.')
         )
 
-        # Load data
-        self.tampering = False
-        if data is None or 'captcha_id' not in data:
-            self.captcha = MathCaptcha()
-        else:
-            try:
-                self.captcha = MathCaptcha.from_hash(data['captcha_id'])
-            except ValueError:
-                self.captcha = MathCaptcha()
-                self.tampering = True
 
+class CaptchaForm(forms.Form):
+    captcha = forms.IntegerField(required=True)
+
+    def __init__(self, request, form=None, data=None, *args, **kwargs):
+        super(CaptchaForm, self).__init__(data, *args, **kwargs)
+        self.fresh = False
+        self.request = request
+        self.form = form
+
+        if data is None or 'captcha' not in request.session:
+            self.generate_captcha()
+            self.fresh = True
+        else:
+            self.captcha = MathCaptcha.from_hash(
+                request.session.pop('captcha')
+            )
+
+    def generate_captcha(self):
+        self.captcha = MathCaptcha()
+        self.request.session['captcha'] = self.captcha.hashed
         # Set correct label
         self.fields['captcha'].label = pgettext(
             'Question for a mathematics-based CAPTCHA, '
             'the %s is an arithmetic problem',
             'What is %s?'
         ) % self.captcha.display
-        self.fields['captcha_id'].initial = self.captcha.hashed
 
     def clean_captcha(self):
-        '''
-        Validation for captcha.
-        '''
-        if (self.tampering or
+        """Validation for captcha."""
+        if (self.fresh or
                 not self.captcha.validate(self.cleaned_data['captcha'])):
+            self.generate_captcha()
+            rotate_token(self.request)
             raise forms.ValidationError(
-                _('Please check your math and try again.')
+                _('Please check your math and try again with new expression.')
             )
 
-        mail = self.cleaned_data.get('email', 'NONE')
+        if self.form.is_valid():
+            mail = self.form.cleaned_data['email']
+        else:
+            mail = 'NONE'
 
         LOGGER.info(
             'Passed captcha for %s (%s = %s)',
@@ -426,69 +508,39 @@ class CaptchaRegistrationForm(RegistrationForm):
         )
 
 
-class PasswordForm(forms.Form):
-    '''
-    Form for setting password.
-    '''
-    password1 = forms.CharField(
-        widget=forms.PasswordInput(render_value=False),
-        label=_("New password"),
-        help_text=_('At least six characters long.'),
-    )
-    password2 = forms.CharField(
-        widget=forms.PasswordInput(render_value=False),
-        label=_("New password (again)"),
-        help_text=_(
-            'Repeat the password so we can verify '
-            'you typed it in correctly.'
-        ),
-    )
-
-    def clean_password1(self):
-        '''
-        Password validation, requires length of six chars.
-        '''
-        if len(self.cleaned_data['password1']) < 6:
-            raise forms.ValidationError(
-                _('Password needs to have at least six characters.')
-            )
-        return self.cleaned_data['password1']
-
-    def clean(self):
-        """
-        Verify that the values entered into the two password fields
-        match. Note that an error here will end up in
-        ``non_field_errors()`` because it doesn't apply to a single
-        field.
-
-        """
-        password1 = self.cleaned_data.get('password1', '')
-        password2 = self.cleaned_data.get('password2', '')
-
-        if password1 != password2:
-            raise forms.ValidationError(
-                _('You must type the same password each time.')
-            )
-
-        return self.cleaned_data
-
-
-class PasswordChangeForm(forms.Form):
-    password = forms.CharField(
-        widget=forms.PasswordInput(render_value=False),
+class PasswordConfirmForm(forms.Form):
+    password = PasswordField(
         label=_("Current password"),
+        help_text=_(
+            'Keep the field empty if you have not yet set your password.'
+        ),
+        required=False,
     )
+
+    def __init__(self, request, *args, **kwargs):
+        self.request = request
+        super(PasswordConfirmForm, self).__init__(*args, **kwargs)
+
+    def clean_password(self):
+        cur_password = self.cleaned_data['password']
+        if self.request.user.has_usable_password():
+            valid = self.request.user.check_password(cur_password)
+        else:
+            valid = (cur_password == '')
+        if not valid:
+            rotate_token(self.request)
+            raise forms.ValidationError(
+                _('You have entered an invalid password.')
+            )
 
 
 class ResetForm(EmailForm):
     def clean_email(self):
-        users = User.objects.filter(email__iexact=self.cleaned_data['email'])
-
-        if not users.exists():
+        if self.cleaned_data['email'] == 'noreply@weblate.org':
             raise forms.ValidationError(
-                _('User with this email address was not found.')
+                'No password reset for deleted or anonymous user.'
             )
-        return users[0]
+        return super(ResetForm, self).clean_email()
 
 
 class LoginForm(forms.Form):
@@ -496,9 +548,8 @@ class LoginForm(forms.Form):
         max_length=254,
         label=_('Username or email')
     )
-    password = forms.CharField(
+    password = PasswordField(
         label=_("Password"),
-        widget=forms.PasswordInput
     )
 
     error_messages = {
@@ -521,11 +572,26 @@ class LoginForm(forms.Form):
         password = self.cleaned_data.get('password')
 
         if username and password:
+            if not check_rate_limit(self.request):
+                raise forms.ValidationError(
+                    _('Too many authentication attempts!')
+                )
             self.user_cache = authenticate(
                 username=username,
                 password=password
             )
             if self.user_cache is None:
+                try:
+                    notify_account_activity(
+                        try_get_user(username),
+                        self.request,
+                        'failed-auth',
+                        method='Password',
+                        name=username,
+                    )
+                except User.DoesNotExist:
+                    pass
+                rotate_token(self.request)
                 raise forms.ValidationError(
                     self.error_messages['invalid_login'],
                     code='invalid_login',
@@ -535,6 +601,15 @@ class LoginForm(forms.Form):
                     self.error_messages['inactive'],
                     code='inactive',
                 )
+            else:
+                notify_account_activity(
+                    self.user_cache,
+                    self.request,
+                    'login',
+                    method='Password',
+                    name=username,
+                )
+            reset_rate_limit(self.request)
         return self.cleaned_data
 
     def get_user_id(self):
@@ -547,11 +622,9 @@ class LoginForm(forms.Form):
 
 
 class HostingForm(forms.Form):
-    '''
-    Form for asking for hosting.
-    '''
+    """Form for asking for hosting."""
     name = forms.CharField(label=_('Your name'), required=True)
-    email = forms.EmailField(label=_('Your email'), required=True)
+    email = EmailField(label=_('Your email'), required=True)
     project = forms.CharField(label=_('Project name'), required=True)
     url = forms.URLField(label=_('Project website'), required=True)
     repo = forms.CharField(
@@ -578,9 +651,7 @@ class HostingForm(forms.Form):
     content = forms.CharField(required=False)
 
     def clean_content(self):
-        '''
-        Check if content is empty.
-        '''
+        """Check if content is empty."""
         if self.cleaned_data['content'] != '':
             raise forms.ValidationError('Invalid value')
         return ''

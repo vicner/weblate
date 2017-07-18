@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,17 +15,16 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-'''
-Testing of template tags.
-'''
+"""Testing of template tags."""
 
 import datetime
 from unittest import TestCase
 
 from django.utils import timezone
 
+from weblate.accounts.models import Profile
 from weblate.trans.models import Unit, SubProject, Translation
 from weblate.trans.templatetags.translations import (
     naturaltime, get_location_links
@@ -77,8 +76,8 @@ class NaturalTimeTest(TestCase):
             )
             self.assertEqual(
                 expected, result,
-                'naturaltime(%s) "%s" != "%s"' % (
-                    testdate, result, expected,
+                'naturaltime({0}) "{1}" != "{2}"'.format(
+                    testdate, result, expected
                 )
             )
 
@@ -90,31 +89,32 @@ class LocationLinksTest(TestCase):
                 subproject=SubProject()
             )
         )
+        self.profile = Profile()
 
     def test_empty(self):
         self.assertEqual(
-            get_location_links(self.unit),
+            get_location_links(self.profile, self.unit),
             ''
         )
 
     def test_numeric(self):
         self.unit.location = '123'
         self.assertEqual(
-            get_location_links(self.unit),
+            get_location_links(self.profile, self.unit),
             'unit ID 123'
         )
 
     def test_filename(self):
         self.unit.location = 'f&oo.bar:123'
         self.assertEqual(
-            get_location_links(self.unit),
+            get_location_links(self.profile, self.unit),
             'f&amp;oo.bar:123'
         )
 
     def test_filenames(self):
         self.unit.location = 'foo.bar:123,bar.foo:321'
         self.assertEqual(
-            get_location_links(self.unit),
+            get_location_links(self.profile, self.unit),
             'foo.bar:123\nbar.foo:321'
         )
 
@@ -124,7 +124,7 @@ class LocationLinksTest(TestCase):
         )
         self.unit.location = 'foo.bar:123,bar.foo:321'
         self.assertEqual(
-            get_location_links(self.unit),
+            get_location_links(self.profile, self.unit),
             '<a href="http://example.net/foo.bar#L123">foo.bar:123</a>\n'
             '<a href="http://example.net/bar.foo#L321">bar.foo:321</a>'
         )
@@ -135,6 +135,18 @@ class LocationLinksTest(TestCase):
         )
         self.unit.location = 'foo.bar:123'
         self.assertEqual(
-            get_location_links(self.unit),
+            get_location_links(self.profile, self.unit),
             '<a href="http://example.net/foo.bar#L123">foo.bar:123</a>'
+        )
+
+    def test_user_url(self):
+        self.unit.translation.subproject.repoweb = (
+            'http://example.net/%(file)s#L%(line)s'
+        )
+        self.profile.editor_link = 'editor://open/?file=%(file)s&line=%(line)s'
+        self.unit.location = 'foo.bar:123'
+        self.assertEqual(
+            get_location_links(self.profile, self.unit),
+            '<a href="editor://open/?file=foo.bar&amp;line=123">'
+            'foo.bar:123</a>'
         )

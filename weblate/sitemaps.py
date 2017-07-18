@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,13 +15,12 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from django.contrib.sitemaps import Sitemap
 from django.core.urlresolvers import reverse
 from weblate.trans.models import Project, SubProject, Translation, Change
-from weblate.accounts.models import Profile
 
 
 class PagesSitemap(Sitemap):
@@ -29,7 +28,6 @@ class PagesSitemap(Sitemap):
         return (
             ('/', 1.0, 'daily'),
             ('/about/', 0.8, 'daily'),
-            ('/contact/', 0.2, 'monthly'),
         )
 
     def location(self, item):
@@ -81,17 +79,8 @@ class TranslationSitemap(WeblateSitemap):
         )
 
 
-class UserSitemap(WeblateSitemap):
-    priority = 0.1
-
-    def items(self):
-        return Profile.objects.all()
-
-
 class EngageSitemap(ProjectSitemap):
-    '''
-    Wrapper around ProjectSitemap to point to engage page.
-    '''
+    """Wrapper around ProjectSitemap to point to engage page."""
     priority = 1.0
 
     def location(self, obj):
@@ -99,15 +88,11 @@ class EngageSitemap(ProjectSitemap):
 
 
 class EngageLangSitemap(Sitemap):
-    '''
-    Wrapper to generate sitemap for all per language engage pages.
-    '''
+    """Wrapper to generate sitemap for all per language engage pages."""
     priority = 0.9
 
     def items(self):
-        '''
-        Return list of existing project, langauge tuples.
-        '''
+        """Return list of existing project, langauge tuples."""
         ret = []
         for project in Project.objects.filter(enable_acl=False):
             for lang in project.get_languages():
@@ -127,6 +112,5 @@ SITEMAPS = {
     'engagelang': EngageLangSitemap(),
     'subproject': ComponentSitemap(),
     'translation': TranslationSitemap(),
-    'user': UserSitemap(),
     'pages': PagesSitemap(),
 }

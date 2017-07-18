@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,24 +15,20 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""
-Tests for widgets.
-"""
+"""Test for widgets."""
 
 from django.core.urlresolvers import reverse
 
 from weblate.trans.models import Translation
-from weblate.trans.tests.test_views import ViewTestCase
+from weblate.trans.tests.test_views import FixtureTestCase
 from weblate.trans.views.widgets import WIDGETS
 
 
-class WidgetsTest(ViewTestCase):
-    '''
-    Testing of widgets.
-    '''
+class WidgetsTest(FixtureTestCase):
+    """Testing of widgets."""
     def test_view_widgets_root(self):
         response = self.client.get(
             reverse('widgets_root')
@@ -66,7 +62,7 @@ class WidgetsTest(ViewTestCase):
 
 
 class WidgetsMeta(type):
-    def __new__(mcs, name, bases, attrs):
+    def __new__(mcs, name, bases, attrs):  # noqa
 
         def gen_test(widget, color):
             def test(self):
@@ -80,16 +76,19 @@ class WidgetsMeta(type):
         return type.__new__(mcs, name, bases, attrs)
 
 
-class WidgetsRenderTest(ViewTestCase):
+class WidgetsRenderTest(FixtureTestCase):
     __metaclass__ = WidgetsMeta
 
     def assert_widget(self, widget, response):
         if hasattr(WIDGETS[widget], 'redirect'):
-            self.assertEqual(response.status_code, 302)
+            if hasattr(response, 'redirect_chain'):
+                self.assertEqual(response.redirect_chain[0][1], 301)
+            else:
+                self.assertEqual(response.status_code, 301)
         elif 'svg' in WIDGETS[widget].content_type:
-            self.assertSVG(response)
+            self.assert_svg(response)
         else:
-            self.assertPNG(response)
+            self.assert_png(response)
 
     def perform_test(self, widget, color):
         response = self.client.get(
@@ -99,7 +98,7 @@ class WidgetsRenderTest(ViewTestCase):
                     'project': self.project.slug,
                     'widget': widget,
                     'color': color,
-                    'extension': 'png',
+                    'extension': WIDGETS[widget].extension,
                 }
             )
         )
@@ -118,7 +117,7 @@ class WidgetsPercentRenderTest(WidgetsRenderTest):
                         'project': self.project.slug,
                         'widget': widget,
                         'color': color,
-                        'extension': 'png',
+                        'extension': WIDGETS[widget].extension,
                     }
                 )
             )
@@ -136,9 +135,46 @@ class WidgetsLanguageRenderTest(WidgetsRenderTest):
                     'widget': widget,
                     'color': color,
                     'lang': 'cs',
-                    'extension': 'png',
+                    'extension': WIDGETS[widget].extension,
                 }
             )
+        )
+
+        self.assert_widget(widget, response)
+
+
+class WidgetsRedirectRenderTest(WidgetsRenderTest):
+    def perform_test(self, widget, color):
+        response = self.client.get(
+            reverse(
+                'widget-image',
+                kwargs={
+                    'project': self.project.slug,
+                    'widget': widget,
+                    'color': color,
+                    'extension': 'bin'
+                }
+            ),
+            follow=True
+        )
+
+        self.assert_widget(widget, response)
+
+
+class WidgetsLanguageRedirectRenderTest(WidgetsRenderTest):
+    def perform_test(self, widget, color):
+        response = self.client.get(
+            reverse(
+                'widget-image-lang',
+                kwargs={
+                    'project': self.project.slug,
+                    'widget': widget,
+                    'color': color,
+                    'lang': 'cs',
+                    'extension': 'bin'
+                }
+            ),
+            follow=True
         )
 
         self.assert_widget(widget, response)

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,11 +15,9 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-"""
-Provides user friendly names for social authentication methods.
-"""
+"""Provide user friendly names for social authentication methods."""
 from __future__ import unicode_literals
 from django import template
 from django.utils.safestring import mark_safe
@@ -60,9 +58,7 @@ FL_SOCIAL_TEMPLATE = '''
 
 @register.simple_tag
 def auth_name(auth, extra_class='fa-4x', separator='<br />'):
-    """
-    Creates HTML markup for social authentication method.
-    """
+    """Create HTML markup for social authentication method."""
 
     params = {
         'name': auth,
@@ -80,3 +76,10 @@ def auth_name(auth, extra_class='fa-4x', separator='<br />'):
         html_template = FA_SOCIAL_TEMPLATE
 
     return mark_safe(html_template.format(**params))
+
+
+def get_auth_name(auth):
+    """Get nice name for authentication backend."""
+    if auth in SOCIALS:
+        return SOCIALS[auth]['name']
+    return auth

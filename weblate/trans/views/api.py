@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,16 +15,18 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 import csv
 import json
 import re
+import sys
 import threading
 
 import six
 
+from django.conf import settings
 from django.db.models import Q
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -33,10 +35,10 @@ from django.http import (
     JsonResponse,
 )
 
-from weblate import appsettings
 from weblate.trans.models import SubProject
 from weblate.trans.views.helper import get_project, get_subproject
 from weblate.trans.stats import get_project_stats
+from weblate.utils.errors import report_error
 from weblate.logger import LOGGER
 
 
@@ -81,19 +83,15 @@ def hook_response(response='Update triggered', status='success'):
 
 
 def register_hook(handler):
-    """
-    Registers hook handler.
-    """
+    """Register hook handler."""
     name = handler.__name__.split('_')[0]
     HOOK_HANDLERS[name] = handler
     return handler
 
 
 def perform_update(obj):
-    '''
-    Triggers update of given object.
-    '''
-    if appsettings.BACKGROUND_HOOKS:
+    """Trigger update of given object."""
+    if settings.BACKGROUND_HOOKS:
         thread = threading.Thread(target=obj.do_update)
         thread.start()
     else:
@@ -102,10 +100,8 @@ def perform_update(obj):
 
 @csrf_exempt
 def update_subproject(request, project, subproject):
-    '''
-    API hook for updating git repos.
-    '''
-    if not appsettings.ENABLE_HOOKS:
+    """API hook for updating git repos."""
+    if not settings.ENABLE_HOOKS:
         return HttpResponseNotAllowed([])
     obj = get_subproject(request, project, subproject, True)
     if not obj.project.enable_hooks:
@@ -116,10 +112,8 @@ def update_subproject(request, project, subproject):
 
 @csrf_exempt
 def update_project(request, project):
-    '''
-    API hook for updating git repos.
-    '''
-    if not appsettings.ENABLE_HOOKS:
+    """API hook for updating git repos."""
+    if not settings.ENABLE_HOOKS:
         return HttpResponseNotAllowed([])
     obj = get_project(request, project, True)
     if not obj.enable_hooks:
@@ -129,7 +123,7 @@ def update_project(request, project):
 
 
 def parse_hook_payload(request):
-    """Parses hook payload."""
+    """Parse hook payload."""
     # GitLab sends json as application/json
     if request.META['CONTENT_TYPE'] == 'application/json':
         return json.loads(request.body.decode('utf-8'))
@@ -141,15 +135,14 @@ def parse_hook_payload(request):
 @require_POST
 @csrf_exempt
 def vcs_service_hook(request, service):
-    '''
-    Shared code between VCS service hooks.
+    """Shared code between VCS service hooks.
 
     Currently used for bitbucket_hook, github_hook and gitlab_hook, but should
     be usable for other VCS services (Google Code, custom coded sites, etc.)
     too.
-    '''
+    """
     # We support only post methods
-    if not appsettings.ENABLE_HOOKS:
+    if not settings.ENABLE_HOOKS:
         return HttpResponseNotAllowed(())
 
     # Check if we got payload
@@ -164,8 +157,9 @@ def vcs_service_hook(request, service):
     # Send the request data to the service handler.
     try:
         service_data = hook_helper(data)
-    except KeyError:
+    except Exception as error:
         LOGGER.error('failed to parse service %s data', service)
+        report_error(error, sys.exc_info())
         return HttpResponseBadRequest('Invalid data in json payload!')
 
     # Log data
@@ -224,19 +218,27 @@ def bitbucket_webhook_helper(data):
         for repo in BITBUCKET_REPOS
     ]
 
+    branch = None
+
+    changes = data['push']['changes']
+
+    if changes:
+        if changes[-1]['new']:
+            branch = changes[-1]['new']['name']
+        elif changes[-1]['old']:
+            branch = changes[-1]['old']['name']
+
     return {
         'service_long_name': 'Bitbucket',
         'repo_url': data['repository']['links']['html']['href'],
         'repos': repos,
-        'branch': data['push']['changes'][-1]['new']['name']
+        'branch': branch,
     }
 
 
 @register_hook
 def bitbucket_hook_helper(data):
-    '''
-    API to handle service hooks from Bitbucket.
-    '''
+    """API to handle service hooks from Bitbucket."""
     if 'push' in data:
         return bitbucket_webhook_helper(data)
 
@@ -273,11 +275,10 @@ def bitbucket_hook_helper(data):
 
 @register_hook
 def github_hook_helper(data):
-    '''
-    API to handle commit hooks from GitHub.
-    '''
+    """API to handle commit hooks from GitHub."""
     # Parse owner, branch and repository name
-    owner = data['repository']['owner']['name']
+    o_data = data['repository']['owner']
+    owner = o_data['login'] if 'login' in o_data else o_data['name']
     slug = data['repository']['name']
     branch = re.sub(r'^refs/heads/', '', data['ref'])
 
@@ -296,9 +297,7 @@ def github_hook_helper(data):
 
 @register_hook
 def gitlab_hook_helper(data):
-    '''
-    API to handle commit hooks from GitLab.
-    '''
+    """API to handle commit hooks from GitLab."""
     ssh_url = data['repository']['url']
     http_url = '.'.join((data['repository']['homepage'], 'git'))
     branch = re.sub(r'^refs/heads/', '', data['ref'])
@@ -320,15 +319,13 @@ def gitlab_hook_helper(data):
 
 
 def export_stats_project(request, project):
-    '''
-    Exports stats in JSON format.
-    '''
+    """Export stats in JSON format."""
     obj = get_project(request, project)
 
     data = get_project_stats(obj)
     return export_response(
         request,
-        'stats-%s.csv' % obj.slug,
+        'stats-{0}.csv'.format(obj.slug),
         (
             'language',
             'code',
@@ -344,9 +341,7 @@ def export_stats_project(request, project):
 
 
 def export_stats(request, project, subproject):
-    '''
-    Exports stats in JSON format.
-    '''
+    """Export stats in JSON format."""
     subprj = get_subproject(request, project, subproject)
 
     data = [
@@ -354,7 +349,7 @@ def export_stats(request, project, subproject):
     ]
     return export_response(
         request,
-        'stats-%s-%s.csv' % (subprj.project.slug, subprj.slug),
+        'stats-{0}-{1}.csv'.format(subprj.project.slug, subprj.slug),
         (
             'name',
             'code',
@@ -384,7 +379,9 @@ def export_response(request, filename, fields, data):
 
     if output == 'csv':
         response = HttpResponse(content_type='text/csv; charset=utf-8')
-        response['Content-Disposition'] = 'attachment; filename=%s' % filename
+        response['Content-Disposition'] = 'attachment; filename={0}'.format(
+            filename
+        )
 
         writer = csv.DictWriter(
             response, fields

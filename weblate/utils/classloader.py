@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,47 +15,46 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from importlib import import_module
 
+from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
-
-from weblate import appsettings
 
 
 def load_class(name, setting):
-    '''
-    Imports module and creates class given by name in string.
-    '''
+    """Import module and creates class given by name in string."""
     try:
         module, attr = name.rsplit('.', 1)
     except ValueError as error:
         raise ImproperlyConfigured(
-            'Error importing class %s in %s: "%s"' %
-            (name, setting, error)
+            'Error importing class {0} in {1}: "{2}"'.format(
+                name, setting, error
+            )
         )
     try:
         mod = import_module(module)
     except ImportError as error:
         raise ImproperlyConfigured(
-            'Error importing module %s in %s: "%s"' %
-            (module, setting, error)
+            'Error importing module {0} in {1}: "{2}"'.format(
+                module, setting, error
+            )
         )
     try:
         cls = getattr(mod, attr)
     except AttributeError:
         raise ImproperlyConfigured(
-            'Module "%s" does not define a "%s" class in %s' %
-            (module, attr, setting)
+            'Module "{0}" does not define a "{1}" class in {2}'.format(
+                module, attr, setting
+            )
         )
     return cls
 
 
 class ClassLoader(object):
-    """Dict like object to lazy load list of classes.
-    """
+    """Dict like object to lazy load list of classes."""
     def __init__(self, name):
         self.name = name
         self._data = None
@@ -64,7 +63,7 @@ class ClassLoader(object):
     def data(self):
         if self._data is None:
             self._data = {}
-            for path in getattr(appsettings, self.name):
+            for path in getattr(settings, self.name):
                 obj = load_class(path, self.name)()
                 self._data[obj.get_identifier()] = obj
         return self._data

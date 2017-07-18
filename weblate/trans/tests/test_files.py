@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,15 +15,14 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""
-Tests for import and export.
-"""
+"""Test for import and export."""
 
 from __future__ import unicode_literals
 
+from django.contrib.messages import ERROR
 from django.core.urlresolvers import reverse
 
 from weblate.trans.tests.test_views import ViewTestCase
@@ -31,10 +30,13 @@ from weblate.trans.tests.utils import get_test_file
 
 TEST_PO = get_test_file('cs.po')
 TEST_CSV = get_test_file('cs.csv')
+TEST_CSV_QUOTES = get_test_file('cs-quotes.csv')
+TEST_CSV_QUOTES_ESCAPED = get_test_file('cs-quotes-escaped.csv')
 TEST_PO_BOM = get_test_file('cs-bom.po')
 TEST_FUZZY_PO = get_test_file('cs-fuzzy.po')
 TEST_BADPLURALS = get_test_file('cs-badplurals.po')
 TEST_MO = get_test_file('cs.mo')
+TEST_XLIFF = get_test_file('cs.poxliff')
 TEST_ANDROID = get_test_file('strings-cs.xml')
 
 TRANSLATION_OURS = 'Nazdar světe!\n'
@@ -42,9 +44,7 @@ TRANSLATION_PO = 'Ahoj světe!\n'
 
 
 class ImportBaseTest(ViewTestCase):
-    '''
-    Base test of file imports.
-    '''
+    """Base test of file imports."""
     test_file = TEST_PO
 
     def setUp(self):
@@ -54,14 +54,12 @@ class ImportBaseTest(ViewTestCase):
         self.user.save()
 
     def do_import(self, test_file=None, follow=False, **kwargs):
-        '''
-        Helper to perform file import.
-        '''
+        """Helper to perform file import."""
         if test_file is None:
             test_file = self.test_file
 
         with open(test_file, 'rb') as handle:
-            params = {'file': handle}
+            params = {'file': handle, 'method': 'translate'}
             params.update(kwargs)
             return self.client.post(
                 reverse(
@@ -74,15 +72,11 @@ class ImportBaseTest(ViewTestCase):
 
 
 class ImportTest(ImportBaseTest):
-    '''
-    Testing of file imports.
-    '''
+    """Testing of file imports."""
     test_file = TEST_PO
 
     def test_import_normal(self):
-        '''
-        Test importing normally.
-        '''
+        """Test importing normally."""
         response = self.do_import()
         self.assertRedirects(response, self.translation_url)
 
@@ -97,9 +91,7 @@ class ImportTest(ImportBaseTest):
         self.assertEqual(unit.target, TRANSLATION_PO)
 
     def test_import_header(self):
-        '''
-        Test importing with header merge.
-        '''
+        """Test importing with header merge."""
         response = self.do_import(
             merge_header='1',
         )
@@ -116,7 +108,8 @@ class ImportTest(ImportBaseTest):
         self.assertEqual(unit.target, TRANSLATION_PO)
 
         # Verify header
-        if self.test_file == TEST_PO:
+        if (self.test_file == TEST_PO and
+                hasattr(unit.translation.store.store, 'parseheader')):
             header = unit.translation.store.store.parseheader()
             self.assertEqual(
                 header['Language-Team'], 'Test Team <noreply@weblate.org>'
@@ -127,9 +120,7 @@ class ImportTest(ImportBaseTest):
             )
 
     def test_import_author(self):
-        '''
-        Test importing normally.
-        '''
+        """Test importing normally."""
         response = self.do_import(
             author_name='Testing User',
             author_email='noreply@weblate.org'
@@ -147,13 +138,11 @@ class ImportTest(ImportBaseTest):
         self.assertEqual(unit.target, TRANSLATION_PO)
 
     def test_import_overwrite(self):
-        '''
-        Test importing with overwriting.
-        '''
+        """Test importing with overwriting."""
         # Translate one unit
         self.change_unit(TRANSLATION_OURS)
 
-        response = self.do_import(overwrite='yes')
+        response = self.do_import(upload_overwrite='yes')
         self.assertRedirects(response, self.translation_url)
 
         # Verify unit
@@ -161,9 +150,7 @@ class ImportTest(ImportBaseTest):
         self.assertEqual(unit.target, TRANSLATION_PO)
 
     def test_import_no_overwrite(self):
-        '''
-        Test importing without overwriting.
-        '''
+        """Test importing without overwriting."""
         # Translate one unit
         self.change_unit(TRANSLATION_OURS)
 
@@ -175,9 +162,7 @@ class ImportTest(ImportBaseTest):
         self.assertEqual(unit.target, TRANSLATION_OURS)
 
     def test_import_fuzzy(self):
-        '''
-        Test importing as fuzzy.
-        '''
+        """Test importing as fuzzy."""
         response = self.do_import(method='fuzzy')
         self.assertRedirects(response, self.translation_url)
 
@@ -193,9 +178,7 @@ class ImportTest(ImportBaseTest):
         self.assertEqual(translation.total, 4)
 
     def test_import_suggest(self):
-        '''
-        Test importing as suggestion.
-        '''
+        """Test importing as suggestion."""
         response = self.do_import(method='suggest')
         self.assertRedirects(response, self.translation_url)
 
@@ -215,15 +198,12 @@ class ImportTest(ImportBaseTest):
 
 
 class ImportErrorTest(ImportBaseTest):
-    '''
-    Testing import of broken files.
-    '''
+    """Testing import of broken files."""
     def test_mismatched_plurals(self):
-        '''
-        Test importing a file with different number of plural forms.
+        """Test importing a file with different number of plural forms.
+
         In response to issue #900
-        '''
-        from django.contrib.messages import ERROR
+        """
         response = self.do_import(test_file=TEST_BADPLURALS, follow=True)
         self.assertRedirects(response, self.translation_url)
         messages = list(response.context["messages"])
@@ -236,16 +216,16 @@ class BOMImportTest(ImportTest):
     test_file = TEST_PO_BOM
 
 
+class XliffImportTest(ImportTest):
+    test_file = TEST_XLIFF
+
+
 class ImportFuzzyTest(ImportBaseTest):
-    '''
-    Testing of fuzzy file imports.
-    '''
+    """Testing of fuzzy file imports."""
     test_file = TEST_FUZZY_PO
 
     def test_import_normal(self):
-        '''
-        Test importing normally.
-        '''
+        """Test importing normally."""
         response = self.do_import(
             fuzzy=''
         )
@@ -258,9 +238,7 @@ class ImportFuzzyTest(ImportBaseTest):
         self.assertEqual(translation.total, 4)
 
     def test_import_process(self):
-        '''
-        Test importing normally.
-        '''
+        """Test importing normally."""
         response = self.do_import(
             fuzzy='process'
         )
@@ -273,9 +251,7 @@ class ImportFuzzyTest(ImportBaseTest):
         self.assertEqual(translation.total, 4)
 
     def test_import_approve(self):
-        '''
-        Test importing normally.
-        '''
+        """Test importing normally."""
         response = self.do_import(
             fuzzy='approve'
         )
@@ -289,20 +265,28 @@ class ImportFuzzyTest(ImportBaseTest):
 
 
 class ImportMoTest(ImportTest):
-    '''
-    Testing of mo file imports.
-    '''
+    """Testing of mo file imports."""
     test_file = TEST_MO
 
 
 class ImportMoPoTest(ImportTest):
-    '''
-    Testing of mo file imports.
-    '''
+    """Testing of mo file imports."""
     test_file = TEST_MO
 
     def create_subproject(self):
         return self.create_po()
+
+
+class StringsImportTest(ImportTest):
+    """Testing of mo file imports."""
+    test_file = TEST_PO
+
+    def create_subproject(self):
+        return self.create_iphone()
+
+    def test_import_fuzzy(self):
+        # Does not make sense here
+        pass
 
 
 class AndroidImportTest(ViewTestCase):
@@ -316,7 +300,7 @@ class AndroidImportTest(ViewTestCase):
                     'upload_translation',
                     kwargs=self.kw_translation
                 ),
-                {'file': handle}
+                {'file': handle, 'method': 'translate'}
             )
         # Verify stats
         translation = self.get_translation()
@@ -326,17 +310,19 @@ class AndroidImportTest(ViewTestCase):
 
 
 class CSVImportTest(ViewTestCase):
+    test_file = TEST_CSV
+
     def test_import(self):
         translation = self.get_translation()
         self.assertEqual(translation.translated, 0)
         self.assertEqual(translation.fuzzy, 0)
-        with open(TEST_CSV, 'rb') as handle:
+        with open(self.test_file, 'rb') as handle:
             self.client.post(
                 reverse(
                     'upload_translation',
                     kwargs=self.kw_translation
                 ),
-                {'file': handle}
+                {'file': handle, 'method': 'translate'}
             )
         # Verify stats
         translation = self.get_translation()
@@ -344,10 +330,16 @@ class CSVImportTest(ViewTestCase):
         self.assertEqual(translation.fuzzy, 0)
 
 
+class CSVQuotesImportTest(CSVImportTest):
+    test_file = TEST_CSV_QUOTES
+
+
+class CSVQuotesEscapedImportTest(CSVImportTest):
+    test_file = TEST_CSV_QUOTES_ESCAPED
+
+
 class ExportTest(ViewTestCase):
-    '''
-    Testing of file export.
-    '''
+    """Testing of file export."""
     def create_subproject(self):
         # Needs to create PO file to have language pack option
         return self.create_po()

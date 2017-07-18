@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,24 +15,22 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
+from django.conf import settings
 from django.contrib.sites.models import Site
-from weblate.appsettings import ENABLE_HTTPS
 
 
 def get_site_domain():
-    """Returns current site domain."""
+    """Return current site domain."""
     return Site.objects.get_current().domain
 
 
 def get_site_url(url=''):
-    '''
-    Returns root url of current site with domain.
-    '''
+    """Return root url of current site with domain."""
     return '{0}://{1}{2}'.format(
-        'https' if ENABLE_HTTPS else 'http',
+        'https' if settings.ENABLE_HTTPS else 'http',
         get_site_domain(),
         url
     )

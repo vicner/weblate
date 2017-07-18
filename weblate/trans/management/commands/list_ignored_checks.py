@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from django.core.management.base import BaseCommand
@@ -50,7 +50,7 @@ class Command(BaseCommand):
         else:
             checks = Check.objects.filter(ignore=True)
         for check in checks:
-            name = '%s-%s' % (check.check, check.contentsum)
+            name = '{0}-{1}'.format(check.check, check.content_hash)
             units = get_related_units(check)
             if not units.exists():
                 continue
@@ -64,4 +64,6 @@ class Command(BaseCommand):
                 }
         results = sorted(results.values(), key=lambda x: -x['count'])
         for result in results[:options['count']]:
-            self.stdout.write('%(count)5d %(check)20s %(source)s' % result)
+            self.stdout.write(
+                '{count:5d} {check:20} {source}'.format(**result)
+            )

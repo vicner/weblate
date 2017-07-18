@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
@@ -26,9 +26,7 @@ from weblate.trans.tests.test_checks import MockUnit, MockLanguage
 
 
 class DiffTest(TestCase):
-    '''
-    Testing of HTML diff function.
-    '''
+    """Testing of HTML diff function."""
     def test_same(self):
         self.assertEqual(
             html_diff('first text', 'first text'),
@@ -39,6 +37,12 @@ class DiffTest(TestCase):
         self.assertEqual(
             html_diff('first text', 'first new text'),
             'first <ins>new </ins>text'
+        )
+
+    def test_unicode(self):
+        self.assertEqual(
+            html_diff('zkouška text', 'zkouška nový text'),
+            'zkouška <ins>nový </ins>text'
         )
 
     def test_remove(self):

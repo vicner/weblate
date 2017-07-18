@@ -16,7 +16,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 import re
@@ -38,9 +38,7 @@ WHITESPACE = re.compile(r'\s+')
 
 
 class AngularJSInterpolationCheck(TargetCheck):
-    '''
-    Check for AngularJS interpolation string
-    '''
+    """Check for AngularJS interpolation string"""
     check_id = 'angularjs_format'
     name = _('AngularJS interpolation string')
     description = _('AngularJS interpolation strings do not match source')
@@ -61,8 +59,8 @@ class AngularJSInterpolationCheck(TargetCheck):
             return True
 
         # Remove whitespace
-        src_tags = set([re.sub(WHITESPACE, '', x) for x in src_match])
-        tgt_tags = set([re.sub(WHITESPACE, '', x) for x in tgt_match])
+        src_tags = {re.sub(WHITESPACE, '', x) for x in src_match}
+        tgt_tags = {re.sub(WHITESPACE, '', x) for x in tgt_match}
 
         return src_tags != tgt_tags
 

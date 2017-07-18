@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 """
@@ -39,12 +39,17 @@ class SameCheckTest(CheckTestCase):
         self.test_good_ignore = ('alarm', 'alarm', '')
         self.test_failure_1 = ('retezec', 'retezec', '')
 
-    def test_same_english(self):
-        self.assertFalse(self.check.check_single(
-            'source',
-            'source',
-            MockUnit(code='en'),
-        ))
+    def test_same_source_language(self):
+        unit = MockUnit(code='en')
+        # Is template
+        unit.translation.template = True
+        self.assertTrue(self.check.should_skip(unit))
+        # Is same as source
+        unit.translation.template = False
+        self.assertTrue(self.check.should_skip(unit))
+        # Interlingua special case
+        unit.translation.language.code = 'ia'
+        self.assertTrue(self.check.should_skip(unit))
 
     def test_same_db_screen(self):
         self.assertTrue(self.check.check_single(

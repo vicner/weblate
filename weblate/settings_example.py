@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
@@ -49,6 +49,11 @@ DATABASES = {
         'HOST': '127.0.0.1',
         # Set to empty string for default. Not used with sqlite3.
         'PORT': '',
+        # Customizations for databases
+        'OPTIONS': {
+            # Uncomment for MySQL older than 5.7:
+            # 'init_command': "SET sql_mode='STRICT_TRANS_TABLES'"
+        },
     }
 }
 
@@ -74,12 +79,14 @@ LANGUAGES = (
     ('az', 'Azərbaycan'),
     ('be', 'Беларуская'),
     ('be@latin', 'Biełaruskaja'),
+    ('bg', 'Български'),
     ('br', 'Brezhoneg'),
     ('ca', 'Català'),
     ('cs', 'Čeština'),
     ('da', 'Dansk'),
     ('de', 'Deutsch'),
     ('en', 'English'),
+    ('en-gb', 'English (United Kingdom)'),
     ('el', 'Ελληνικά'),
     ('es', 'Español'),
     ('fi', 'Suomi'),
@@ -132,7 +139,7 @@ MEDIA_ROOT = os.path.join(DATA_DIR, 'media')
 # URL that handles the media served from MEDIA_ROOT. Make sure to use a
 # trailing slash.
 # Examples: "http://media.lawrence.com/media/", "http://example.com/media/"
-MEDIA_URL = '%s/media/' % URL_PREFIX
+MEDIA_URL = '{0}/media/'.format(URL_PREFIX)
 
 # Absolute path to the directory static files should be collected to.
 # Don't put anything in this directory yourself; store your static files
@@ -142,7 +149,7 @@ STATIC_ROOT = os.path.join(DATA_DIR, 'static')
 
 # URL prefix for static files.
 # Example: "http://media.lawrence.com/static/"
-STATIC_URL = '%s/static/' % URL_PREFIX
+STATIC_URL = '{0}/static/'.format(URL_PREFIX)
 
 # Additional locations of static files
 STATICFILES_DIRS = (
@@ -161,7 +168,7 @@ STATICFILES_FINDERS = (
 
 # Make this unique, and don't share it with anybody.
 # You can generate it using examples/generate-secret-key
-SECRET_KEY = 'jm8fqjlg+5!#xu%e-oh#7!$aa7!6avf7ud*_v=chdrb9qdco6('
+SECRET_KEY = 'jm8fqjlg+5!#xu%e-oh#7!$aa7!6avf7ud*_v=chdrb9qdco6('  # noqa
 
 TEMPLATES = [
     {
@@ -193,14 +200,14 @@ GITHUB_USERNAME = None
 
 # Authentication configuration
 AUTHENTICATION_BACKENDS = (
-    'weblate.accounts.auth.EmailAuth',
-    # 'social.backends.google.GoogleOAuth2',
-    # 'social.backends.github.GithubOAuth2',
-    # 'social.backends.bitbucket.BitbucketOAuth',
-    # 'social.backends.suse.OpenSUSEOpenId',
-    # 'social.backends.ubuntu.UbuntuOpenId',
-    # 'social.backends.fedora.FedoraOpenId',
-    # 'social.backends.facebook.FacebookOAuth2',
+    'social_core.backends.email.EmailAuth',
+    # 'social_core.backends.google.GoogleOAuth2',
+    # 'social_core.backends.github.GithubOAuth2',
+    # 'social_core.backends.bitbucket.BitbucketOAuth',
+    # 'social_core.backends.suse.OpenSUSEOpenId',
+    # 'social_core.backends.ubuntu.UbuntuOpenId',
+    # 'social_core.backends.fedora.FedoraOpenId',
+    # 'social_core.backends.facebook.FacebookOAuth2',
     'weblate.accounts.auth.WeblateUserBackend',
 )
 
@@ -222,50 +229,94 @@ SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = ''
 
 # Social auth settings
 SOCIAL_AUTH_PIPELINE = (
-    'social.pipeline.social_auth.social_details',
-    'social.pipeline.social_auth.social_uid',
-    'social.pipeline.social_auth.auth_allowed',
-    'social.pipeline.social_auth.associate_by_email',
-    'social.pipeline.social_auth.social_user',
-    'social.pipeline.user.get_username',
-    'weblate.accounts.pipeline.require_email',
-    'social.pipeline.mail.mail_validation',
-    'social.pipeline.social_auth.associate_by_email',
+    'social_core.pipeline.social_auth.social_details',
+    'social_core.pipeline.social_auth.social_uid',
+    'social_core.pipeline.social_auth.auth_allowed',
+    'social_core.pipeline.social_auth.social_user',
+    'weblate.accounts.pipeline.store_params',
     'weblate.accounts.pipeline.verify_open',
+    'social_core.pipeline.user.get_username',
+    'weblate.accounts.pipeline.require_email',
+    'social_core.pipeline.mail.mail_validation',
+    'weblate.accounts.pipeline.revoke_mail_code',
+    'weblate.accounts.pipeline.ensure_valid',
+    'weblate.accounts.pipeline.reauthenticate',
+    'social_core.pipeline.social_auth.associate_by_email',
     'weblate.accounts.pipeline.verify_username',
-    'social.pipeline.user.create_user',
-    'social.pipeline.social_auth.associate_user',
-    'social.pipeline.social_auth.load_extra_data',
+    'social_core.pipeline.user.create_user',
+    'social_core.pipeline.social_auth.associate_user',
+    'social_core.pipeline.social_auth.load_extra_data',
+    'weblate.accounts.pipeline.cleanup_next',
     'weblate.accounts.pipeline.user_full_name',
     'weblate.accounts.pipeline.store_email',
+    'weblate.accounts.pipeline.notify_connect',
     'weblate.accounts.pipeline.password_reset',
+)
+SOCIAL_AUTH_DISCONNECT_PIPELINE = (
+    'social_core.pipeline.disconnect.allowed_to_disconnect',
+    'social_core.pipeline.disconnect.get_entries',
+    'social_core.pipeline.disconnect.revoke_tokens',
+    'weblate.accounts.pipeline.cycle_session',
+    'weblate.accounts.pipeline.adjust_primary_mail',
+    'weblate.accounts.pipeline.notify_disconnect',
+    'social_core.pipeline.disconnect.disconnect',
+    'weblate.accounts.pipeline.cleanup_next',
 )
 
 # Custom authentication strategy
 SOCIAL_AUTH_STRATEGY = 'weblate.accounts.strategy.WeblateStrategy'
 
+# Raise exceptions so that we can handle them later
+SOCIAL_AUTH_RAISE_EXCEPTIONS = True
+
 SOCIAL_AUTH_EMAIL_VALIDATION_FUNCTION = \
     'weblate.accounts.pipeline.send_validation'
-SOCIAL_AUTH_EMAIL_VALIDATION_URL = '%s/accounts/email-sent/' % URL_PREFIX
-SOCIAL_AUTH_LOGIN_ERROR_URL = '%s/accounts/login/' % URL_PREFIX
-SOCIAL_AUTH_EMAIL_FORM_URL = '%s/accounts/email/' % URL_PREFIX
+SOCIAL_AUTH_EMAIL_VALIDATION_URL = \
+    '{0}/accounts/email-sent/'.format(URL_PREFIX)
+SOCIAL_AUTH_LOGIN_ERROR_URL = \
+    '{0}/accounts/login/'.format(URL_PREFIX)
+SOCIAL_AUTH_EMAIL_FORM_URL = \
+    '{0}/accounts/email/'.format(URL_PREFIX)
 SOCIAL_AUTH_NEW_ASSOCIATION_REDIRECT_URL = \
-    '%s/accounts/profile/#auth' % URL_PREFIX
+    '{0}/accounts/profile/#auth'.format(URL_PREFIX)
 SOCIAL_AUTH_PROTECTED_USER_FIELDS = ('email',)
 SOCIAL_AUTH_SLUGIFY_USERNAMES = True
+SOCIAL_AUTH_SLUGIFY_FUNCTION = 'weblate.accounts.pipeline.slugify_username'
+
+# Password validation configuration
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {
+            'min_length': 6,
+        }
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
+    {
+        'NAME': 'weblate.accounts.password_validation.CharsPasswordValidator',
+    },
+]
 
 # Middleware
 MIDDLEWARE_CLASSES = (
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.contrib.auth.middleware.SessionAuthenticationMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.locale.LocaleMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'weblate.accounts.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'social.apps.django_app.middleware.SocialAuthExceptionMiddleware',
+    'social_django.middleware.SocialAuthExceptionMiddleware',
     'weblate.accounts.middleware.RequireLoginMiddleware',
+    'weblate.middleware.SecurityMiddleware',
 )
 
 ROOT_URLCONF = 'weblate.urls'
@@ -277,23 +328,25 @@ INSTALLED_APPS = (
     'django.contrib.sites',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django.contrib.admin',
+    'django.contrib.admin.apps.SimpleAdminConfig',
     'django.contrib.admindocs',
     'django.contrib.sitemaps',
-    'social.apps.django_app.default',
+    'social_django',
     'crispy_forms',
     'compressor',
     'rest_framework',
     'rest_framework.authtoken',
     'weblate.trans',
     'weblate.lang',
+    'weblate.permissions',
+    'weblate.screenshots',
     'weblate.accounts',
     'weblate.utils',
 
     # Optional: Git exporter
     # 'weblate.gitexport',
 
-    # Needed for javascript localization
+    # This application has to be placed last!
     'weblate',
 )
 
@@ -352,7 +405,8 @@ LOGGING = {
         'mail_admins': {
             'level': 'ERROR',
             'filters': ['require_debug_false'],
-            'class': 'django.utils.log.AdminEmailHandler'
+            'class': 'django.utils.log.AdminEmailHandler',
+            'include_html': True,
         },
         'console': {
             'level': 'DEBUG',
@@ -390,7 +444,17 @@ LOGGING = {
         'weblate': {
             'handlers': [DEFAULT_LOG],
             'level': 'DEBUG',
-        }
+        },
+        # Logging VCS operations
+        # 'weblate-vcs': {
+        #     'handlers': [DEFAULT_LOG],
+        #     'level': 'DEBUG',
+        # },
+        # Python Social Auth logging
+        # 'social': {
+        #     'handlers': [DEFAULT_LOG],
+        #     'level': 'DEBUG',
+        # },
     }
 }
 
@@ -412,14 +476,12 @@ if not HAVE_SYSLOG:
 #     'weblate.trans.machine.mymemory.MyMemoryTranslation',
 #     'weblate.trans.machine.tmserver.AmagamaTranslation',
 #     'weblate.trans.machine.tmserver.TMServerTranslation',
+#     'weblate.trans.machine.yandex.YandexTranslation',
 #     'weblate.trans.machine.weblatetm.WeblateSimilarTranslation',
 #     'weblate.trans.machine.weblatetm.WeblateTranslation',
 # )
 
 # Machine translation API keys
-
-# Apertium Web Service, register at http://api.apertium.org/register.jsp
-MT_APERTIUM_KEY = None
 
 # URL of the Apertium APy server
 MT_APERTIUM_APY = None
@@ -434,7 +496,7 @@ MT_MICROSOFT_SECRET = None
 MT_MICROSOFT_COGNITIVE_KEY = None
 
 # MyMemory identification email, see
-# http://mymemory.translated.net/doc/spec.php
+# https://mymemory.translated.net/doc/spec.php
 MT_MYMEMORY_EMAIL = None
 
 # Optional MyMemory credentials to access private translation memory
@@ -443,6 +505,9 @@ MT_MYMEMORY_KEY = None
 
 # Google API key for Google Translate API
 MT_GOOGLE_KEY = None
+
+# API key for Yandex Translate API
+MT_YANDEX_KEY = None
 
 # tmserver URL
 MT_TMSERVER = None
@@ -453,17 +518,37 @@ SITE_TITLE = 'Weblate'
 # Whether site uses https
 ENABLE_HTTPS = False
 
+# Use HTTPS when creating redirect URLs for social authentication, see
+# documentation for more details:
+# http://python-social-auth-docs.readthedocs.io/en/latest/configuration/settings.html#processing-redirects-and-urlopen
+SOCIAL_AUTH_REDIRECT_IS_HTTPS = ENABLE_HTTPS
+
+# Make CSRF cookie HttpOnly, see documentation for more details:
+# https://docs.djangoproject.com/en/1.11/ref/settings/#csrf-cookie-httponly
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SECURE = ENABLE_HTTPS
+# Store CSRF token in session (since Django 1.11)
+CSRF_USE_SESSIONS = True
+SESSION_COOKIE_SECURE = ENABLE_HTTPS
+# Session cookie age (in seconds)
+SESSION_COOKIE_AGE = 1209600
+
 # URL of login
-LOGIN_URL = '%s/accounts/login/' % URL_PREFIX
+LOGIN_URL = '{0}/accounts/login/'.format(URL_PREFIX)
 
 # URL of logout
-LOGOUT_URL = '%s/accounts/logout/' % URL_PREFIX
+LOGOUT_URL = '{0}/accounts/logout/'.format(URL_PREFIX)
 
 # Default location for login
-LOGIN_REDIRECT_URL = '%s/' % URL_PREFIX
+LOGIN_REDIRECT_URL = '{0}/'.format(URL_PREFIX)
 
 # Anonymous user name
 ANONYMOUS_USER_NAME = 'anonymous'
+
+# Reverse proxy settings
+IP_BEHIND_REVERSE_PROXY = False
+IP_PROXY_HEADER = 'HTTP_X_FORWARDED_FOR'
+IP_PROXY_OFFSET = 0
 
 # Sending HTML in mails
 EMAIL_SEND_HTML = True
@@ -506,15 +591,18 @@ CRISPY_TEMPLATE_PACK = 'bootstrap3'
 #     'weblate.trans.checks.chars.EndQuestionCheck',
 #     'weblate.trans.checks.chars.EndExclamationCheck',
 #     'weblate.trans.checks.chars.EndEllipsisCheck',
+#     'weblate.trans.checks.chars.EndSemicolonCheck',
 #     'weblate.trans.checks.chars.MaxLengthCheck',
 #     'weblate.trans.checks.format.PythonFormatCheck',
 #     'weblate.trans.checks.format.PythonBraceFormatCheck',
 #     'weblate.trans.checks.format.PHPFormatCheck',
 #     'weblate.trans.checks.format.CFormatCheck',
+#     'weblate.trans.checks.format.PerlFormatCheck',
 #     'weblate.trans.checks.format.JavascriptFormatCheck',
 #     'weblate.trans.checks.consistency.PluralsCheck',
 #     'weblate.trans.checks.consistency.SamePluralsCheck',
 #     'weblate.trans.checks.consistency.ConsistencyCheck',
+#     'weblate.trans.checks.consistency.TranslatedCheck',
 #     'weblate.trans.checks.chars.NewlineCountingCheck',
 #     'weblate.trans.checks.markup.BBCodeCheck',
 #     'weblate.trans.checks.chars.ZeroWidthSpaceCheck',
@@ -540,11 +628,11 @@ CRISPY_TEMPLATE_PACK = 'bootstrap3'
 # )
 
 # E-mail address that error messages come from.
-SERVER_EMAIL = 'noreply@weblate.org'
+SERVER_EMAIL = 'noreply@example.com'
 
 # Default email address to use for various automated correspondence from
 # the site managers. Used for registration emails.
-DEFAULT_FROM_EMAIL = 'noreply@weblate.org'
+DEFAULT_FROM_EMAIL = 'noreply@example.com'
 
 # List of URLs your site is supposed to serve
 ALLOWED_HOSTS = []
@@ -589,6 +677,7 @@ REST_FRAMEWORK = {
     ),
     'PAGE_SIZE': 20,
     'VIEW_DESCRIPTION_FUNCTION': 'weblate.api.views.get_view_description',
+    'UNAUTHENTICATED_USER': 'weblate.accounts.models.get_anonymous',
 }
 
 # Example for restricting access to logged in users

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,62 +15,46 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from django.contrib import admin
-from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
-from weblate.trans.models import (
-    Project, SubProject, Translation, Advertisement,
-    Unit, Suggestion, Comment, Check, Dictionary, Change,
-    Source, WhiteboardMessage, GroupACL, ComponentList,
-)
+
+from weblate.trans.models import AutoComponentList, Unit
 from weblate.trans.util import WeblateAdmin, sort_choices
 
 
 class ProjectAdmin(WeblateAdmin):
     list_display = (
-        'name', 'slug', 'web', 'list_owners', 'enable_acl', 'enable_hooks',
-        'num_vcs', 'num_strings', 'num_words', 'num_langs',
+        'name', 'slug', 'web', 'list_admins', 'enable_acl', 'enable_hooks',
+        'num_vcs', 'get_total', 'get_source_words', 'get_language_count',
     )
     prepopulated_fields = {'slug': ('name',)}
     search_fields = ['name', 'slug', 'web']
     actions = ['update_from_git', 'update_checks', 'force_commit']
 
-    def list_owners(self, obj):
-        return ', '.join(obj.owners.values_list('username', flat=True))
-    list_owners.short_description = _('Owners')
+    def list_admins(self, obj):
+        return ', '.join(
+            obj.all_users('@Administration').values_list('username', flat=True)
+        )
+    list_admins.short_description = _('Administrators')
 
     def num_vcs(self, obj):
         return obj.subproject_set.exclude(repo__startswith='weblate:/').count()
     num_vcs.short_description = _('VCS repositories')
 
-    def num_strings(self, obj):
-        return obj.get_total()
-    num_strings.short_description = _('Source strings')
-
-    def num_words(self, obj):
-        return obj.get_total_words()
-    num_words.short_description = _('Source words')
-
-    def num_langs(self, obj):
-        return obj.get_language_count()
-    num_langs.short_description = _('Languages')
-
     def update_from_git(self, request, queryset):
-        """
-        Updates selected components from git.
-        """
+        """Update selected components from git."""
         for project in queryset:
             project.do_update(request)
-        self.message_user(request, "Updated %d git repos." % queryset.count())
+        self.message_user(
+            request, "Updated {0:d} git repos.".format(queryset.count())
+        )
     update_from_git.short_description = _('Update VCS repository')
 
     def update_checks(self, request, queryset):
-        """
-        Recalculates checks for selected components.
-        """
+        """Recalculate checks for selected components."""
         cnt = 0
         units = Unit.objects.filter(
             translation__subproject__project__in=queryset
@@ -78,18 +62,18 @@ class ProjectAdmin(WeblateAdmin):
         for unit in units.iterator():
             unit.run_checks()
             cnt += 1
-        self.message_user(request, "Updated checks for %d units." % cnt)
+        self.message_user(
+            request, "Updated checks for {0:d} units.".format(cnt)
+        )
     update_checks.short_description = _('Update quality checks')
 
     def force_commit(self, request, queryset):
-        """
-        Commits pending changes for selected components.
-        """
+        """Commit pending changes for selected components."""
         for project in queryset:
             project.commit_pending(request)
         self.message_user(
             request,
-            "Flushed changes in %d git repos." % queryset.count()
+            "Flushed changes in {0:d} git repos.".format(queryset.count())
         )
     force_commit.short_description = _('Commit pending changes')
 
@@ -113,18 +97,16 @@ class SubProjectAdmin(WeblateAdmin):
     actions = ['update_from_git', 'update_checks', 'force_commit']
 
     def update_from_git(self, request, queryset):
-        """
-        Updates selected components from git.
-        """
+        """Update selected components from git."""
         for project in queryset:
             project.do_update(request)
-        self.message_user(request, "Updated %d git repos." % queryset.count())
+        self.message_user(
+            request, "Updated {0:d} git repos.".format(queryset.count())
+        )
     update_from_git.short_description = _('Update VCS repository')
 
     def update_checks(self, request, queryset):
-        """
-        Recalculates checks for selected components.
-        """
+        """Recalculate checks for selected components."""
         cnt = 0
         units = Unit.objects.filter(
             translation__subproject__in=queryset
@@ -134,19 +116,17 @@ class SubProjectAdmin(WeblateAdmin):
             cnt += 1
         self.message_user(
             request,
-            "Updated checks for %d units." % cnt
+            "Updated checks for {0:d} units.".format(cnt)
         )
     update_checks.short_description = _('Update quality checks')
 
     def force_commit(self, request, queryset):
-        """
-        Commits pending changes for selected components.
-        """
+        """Commit pending changes for selected components."""
         for project in queryset:
             project.commit_pending(request)
         self.message_user(
             request,
-            "Flushed changes in %d git repos." % queryset.count()
+            "Flushed changes in {0:d} git repos.".format(queryset.count())
         )
     force_commit.short_description = _('Commit pending changes')
 
@@ -169,7 +149,7 @@ class TranslationAdmin(WeblateAdmin):
         queryset.update(enabled=True)
         self.message_user(
             request,
-            "Enabled %d translations." % queryset.count()
+            "Enabled {0:d} translations.".format(queryset.count())
         )
 
     def disable_translation(self, request, queryset):
@@ -179,13 +159,13 @@ class TranslationAdmin(WeblateAdmin):
         queryset.update(enabled=False)
         self.message_user(
             request,
-            "Disabled %d translations." % queryset.count()
+            "Disabled {0:d} translations.".format(queryset.count())
         )
 
 
 class UnitAdmin(admin.ModelAdmin):
     list_display = ['source', 'target', 'position', 'fuzzy', 'translated']
-    search_fields = ['source', 'target', 'checksum']
+    search_fields = ['source', 'target', 'id_hash']
     list_filter = [
         'translation__subproject',
         'translation__language',
@@ -195,22 +175,22 @@ class UnitAdmin(admin.ModelAdmin):
 
 
 class SuggestionAdmin(admin.ModelAdmin):
-    list_display = ['contentsum', 'target', 'project', 'language', 'user']
+    list_display = ['content_hash', 'target', 'project', 'language', 'user']
     list_filter = ['project', 'language']
-    search_fields = ['contentsum', 'target']
+    search_fields = ['content_hash', 'target']
 
 
 class CommentAdmin(admin.ModelAdmin):
     list_display = [
-        'contentsum', 'comment', 'user', 'project', 'language', 'user'
+        'content_hash', 'comment', 'user', 'project', 'language', 'user'
     ]
     list_filter = ['project', 'language']
-    search_fields = ['contentsum', 'comment']
+    search_fields = ['content_hash', 'comment']
 
 
 class CheckAdmin(admin.ModelAdmin):
-    list_display = ['contentsum', 'check', 'project', 'language', 'ignore']
-    search_fields = ['contentsum', 'check']
+    list_display = ['content_hash', 'check', 'project', 'language', 'ignore']
+    search_fields = ['content_hash', 'check']
     list_filter = ['check', 'project', 'ignore']
 
 
@@ -231,15 +211,22 @@ class ChangeAdmin(admin.ModelAdmin):
     raw_id_fields = ('unit',)
 
 
-class WhiteboardAdmin(admin.ModelAdmin):
+class WhiteboardMessageAdmin(admin.ModelAdmin):
     list_display = ['message', 'project', 'subproject', 'language']
     prepopulated_fields = {}
     search_fields = ['message']
     list_filter = ['project', 'language']
 
 
+class AutoComponentListAdmin(admin.TabularInline):
+    model = AutoComponentList
+    extra = 0
+
+
 class ComponentListAdmin(admin.ModelAdmin):
     list_display = ['name']
+    prepopulated_fields = {'slug': ('name',)}
+    inlines = [AutoComponentListAdmin]
 
 
 class AdvertisementAdmin(admin.ModelAdmin):
@@ -249,43 +236,5 @@ class AdvertisementAdmin(admin.ModelAdmin):
 
 
 class SourceAdmin(admin.ModelAdmin):
-    list_display = ['checksum', 'priority', 'timestamp']
+    list_display = ['id_hash', 'priority', 'timestamp']
     date_hierarchy = 'timestamp'
-
-
-class GroupACLAdmin(admin.ModelAdmin):
-    list_display = ['language', 'project_subproject', 'group_list']
-
-    def group_list(self, obj):
-        groups = obj.groups.values_list('name', flat=True)
-        ret = ', '.join(groups[:5])
-        if len(groups) > 5:
-            ret += ', ...'
-        return ret
-
-    def project_subproject(self, obj):
-        if obj.subproject:
-            return obj.subproject
-        else:
-            return obj.project
-    project_subproject.short_description = _('Project / Component')
-
-
-# Register in admin interface
-admin.site.register(Project, ProjectAdmin)
-admin.site.register(SubProject, SubProjectAdmin)
-admin.site.register(Advertisement, AdvertisementAdmin)
-admin.site.register(WhiteboardMessage, WhiteboardAdmin)
-admin.site.register(GroupACL, GroupACLAdmin)
-admin.site.register(ComponentList, ComponentListAdmin)
-
-# Show some controls only in debug mode
-if settings.DEBUG:
-    admin.site.register(Translation, TranslationAdmin)
-    admin.site.register(Unit, UnitAdmin)
-    admin.site.register(Suggestion, SuggestionAdmin)
-    admin.site.register(Comment, CommentAdmin)
-    admin.site.register(Check, CheckAdmin)
-    admin.site.register(Dictionary, DictionaryAdmin)
-    admin.site.register(Change, ChangeAdmin)
-    admin.site.register(Source, SourceAdmin)

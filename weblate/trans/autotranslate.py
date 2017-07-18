@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,21 +15,24 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 
+from weblate.permissions.helpers import can_access_project
 from weblate.trans.models import Unit, Change, SubProject
 
 
-def auto_translate(user, translation, source, inconsistent, overwrite):
+def auto_translate(user, translation, source, inconsistent, overwrite,
+                   check_acl=True):
+    """Perform automatic translation based on other components."""
     updated = 0
 
     if inconsistent:
         units = translation.unit_set.filter_type(
-            'inconsistent', translation
+            'check:inconsistent', translation
         )
     elif overwrite:
         units = translation.unit_set.all()
@@ -42,7 +45,8 @@ def auto_translate(user, translation, source, inconsistent, overwrite):
     )
     if source:
         subprj = SubProject.objects.get(id=source)
-        if not subprj.has_acl(user):
+
+        if check_acl and not can_access_project(user, subprj.project):
             raise PermissionDenied()
         sources = sources.filter(translation__subproject=subprj)
     else:

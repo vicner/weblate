@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 
 from django.db import migrations
 
+
 def fill_in_fields(apps, schema_editor):
     SubProject = apps.get_model('trans', 'SubProject')
 

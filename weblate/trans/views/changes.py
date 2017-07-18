@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 import csv
@@ -27,20 +27,17 @@ from django.utils.translation import ugettext as _, activate, pgettext
 from django.core.urlresolvers import reverse
 from django.db.models import Q
 from django.core.exceptions import PermissionDenied
+from django.utils.http import urlencode
 
-from six.moves.urllib.parse import urlencode
-
-from weblate.trans import messages
+from weblate.utils import messages
 from weblate.trans.models.change import Change
 from weblate.trans.views.helper import get_project_translation
 from weblate.lang.models import Language
-from weblate.trans.permissions import can_download_changes
+from weblate.permissions.helpers import can_download_changes
 
 
 class ChangesView(ListView):
-    '''
-    Browser for changes.
-    '''
+    """Browser for changes."""
     paginate_by = 20
 
     def __init__(self, **kwargs):
@@ -53,9 +50,7 @@ class ChangesView(ListView):
         self.glossary = False
 
     def get_context_data(self, **kwargs):
-        '''
-        Creates context for rendering page.
-        '''
+        """Create context for rendering page."""
         context = super(ChangesView, self).get_context_data(
             **kwargs
         )
@@ -115,7 +110,7 @@ class ChangesView(ListView):
 
         if self.user is not None:
             context['changes_user'] = self.user
-            url['user'] = self.user.username.encode('utf-8')
+            url['user'] = self.user.username
             if 'title' not in context:
                 context['title'] = pgettext(
                     'Changes by user', 'Changes by %s'
@@ -132,17 +127,15 @@ class ChangesView(ListView):
         return context
 
     def _get_queryset_project(self):
-        """
-        Filtering by translation/project.
-        """
+        """Filtering by translation/project."""
         if 'project' in self.request.GET:
             try:
                 self.project, self.subproject, self.translation = \
                     get_project_translation(
                         self.request,
-                        self.request.GET.get('project', None),
-                        self.request.GET.get('subproject', None),
-                        self.request.GET.get('lang', None),
+                        self.request.GET.get('project'),
+                        self.request.GET.get('subproject'),
+                        self.request.GET.get('lang'),
                     )
             except Http404:
                 messages.error(
@@ -151,9 +144,7 @@ class ChangesView(ListView):
                 )
 
     def _get_queryset_language(self):
-        """
-        Filtering by language
-        """
+        """Filtering by language"""
         if self.translation is None and 'lang' in self.request.GET:
             try:
                 self.language = Language.objects.get(
@@ -166,9 +157,7 @@ class ChangesView(ListView):
                 )
 
     def _get_queryset_user(self):
-        """
-        Filtering by user
-        """
+        """Filtering by user"""
         if 'user' in self.request.GET:
             try:
                 self.user = User.objects.get(
@@ -181,9 +170,7 @@ class ChangesView(ListView):
                 )
 
     def get_queryset(self):
-        '''
-        Returns list of changes to browse.
-        '''
+        """Return list of changes to browse."""
         self._get_queryset_project()
 
         self._get_queryset_language()

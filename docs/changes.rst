@@ -1,12 +1,140 @@
 Changes
 =======
 
+weblate 2.16
+------------
+
+Released on ? 2017.
+
+* Various performance improvements.
+* Added suport for nested JSON format.
+* Fixed git exporter authentication.
+* Improved CSV import in certain situations.
+* Improved look of Other translations widget.
+
+weblate 2.15
+------------
+
+Released on June 30th 2017.
+
+* Show more related translations in other translations.
+* Add option to see translations of current unit to other languages.
+* Use 4 plural forms for Lithuanian by default.
+* Fixed upload for monolingual files of different format.
+* Improved error messages on failed authentication.
+* Keep page state when removing word from glossary.
+* Added direct link to edit secondary language translation.
+* Added Perl format quality check.
+* Added support for rejecting reused passwords.
+* Extended toolbar for editing RTL languages.
+
+weblate 2.14.1
+--------------
+
+Released on May 24th 2017.
+
+* Fixed possible error when paginating search results.
+* Fixed migrations from older versions in some corner cases.
+* Fixed possible CSRF on project watch and unwatch.
+* The password reset no longer authenticates user.
+* Fixed possible captcha bypass on forgotten password.
+
+weblate 2.14
+------------
+
+Released on May 17th 2017.
+
+* Add glossary entries using AJAX.
+* The logout now uses POST to avoid CSRF.
+* The API key token reset now uses POST to avoid CSRF.
+* Weblate sets Content-Security-Policy by default.
+* The local editor URL is validated to avoid self-XSS.
+* The password is now validated against common flaws by default.
+* Notify users about imporant activity with their account such as password change.
+* The CSV exports now escape potential formulas.
+* Various minor improvements in security.
+* The authentication attempts are now rate limited.
+* Suggestion content is stored in the history.
+* Store important account activity in audit log.
+* Ask for password confirmation when removing account or adding new associations.
+* Show time when suggestion has been made.
+* There is new quality check for trailing semicolon.
+* Ensure that search links can be shared.
+* Included source string information and screenshots in the API.
+* Allow to overwrite translations through API upload.
+
+weblate 2.13.1
+--------------
+
+Released on Apr 12th 2017.
+
+* Fixed listing of managed projects in profile.
+* Fixed migration issue where some permissions were missing.
+* Fixed listing of current file format in translation download.
+* Return HTTP 404 when trying to access project where user lacks privileges.
+
+weblate 2.13
+------------
+
+Released on Apr 12th 2017.
+
+* Fixed quality checks on translation templates.
+* Added quality check to trigger on losing translation.
+* Add option to view pending suggestions from user.
+* Add option to automatically build component lists.
+* Default dashboard for unauthenticated users can be configured.
+* Add option to browse 25 random strings for review.
+* History now indicates string change.
+* Better error reporting when adding new translation.
+* Added per language search within project.
+* Group ACLs can now be limited to certain permissions.
+* The per project ALCs are now implemented using Group ACL.
+* Added more fine grained privileges control.
+* Various minor UI improvements.
+
+weblate 2.12
+------------
+
+Released on Mar 3rd 2017.
+
+* Improved admin interface for groups.
+* Added support for Yandex Translate API.
+* Improved speed of sitewide search.
+* Added project and component wide search.
+* Added project and component wide search and replace.
+* Improved rendering of inconsistent translations.
+* Added support for opening source files in local editor.
+* Added support for configuring visual keyboard with special characters.
+* Improved screenshot management with OCR support for matching source strings.
+* Default commit message now includes translation information and URL.
+* Added support for Joomla translation format.
+* Improved reliability of import across file formats.
+
 weblate 2.11
 ------------
 
-Released on ? 2016.
+Released on Jan 31st 2017.
 
 * Include language detailed information on language page.
+* Mercurial backend improvements.
+* Added option to specify translation component priority.
+* More consistent usage of Group ACL even with less used permissions.
+* Added WL_BRANCH variable to hook scripts.
+* Improved developer documentation.
+* Better compatibility with various Git versions in Git exporter addon.
+* Included per project and component stats.
+* Added language code mapping for better support of Microsoft Translate API.
+* Moved fulltext cleanup to background job to make translation removal faster.
+* Fixed displaying of plural source for languages with single plural form.
+* Improved error handling in import_project.
+* Various performance improvements.
+
+weblate 2.10.1
+--------------
+
+Released on Jan 20th 2017.
+
+* Do not leak account existence on password reset form (CVE-2017-5537).
 
 weblate 2.10
 ------------

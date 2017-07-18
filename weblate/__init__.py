@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 import os
@@ -29,15 +29,13 @@ from weblate.trans.ssh import create_ssh_wrapper
 
 
 def get_root_dir():
-    '''
-    Returns Weblate root dir.
-    '''
+    """Return Weblate root dir."""
     curdir = os.path.dirname(os.path.abspath(__file__))
     return os.path.abspath(os.path.join(curdir, '..'))
 
 
 # Weblate version
-VERSION = '2.11-dev'
+VERSION = '2.16-dev'
 
 # Version string without suffix
 VERSION_BASE = VERSION.replace('-dev', '')
@@ -56,27 +54,23 @@ except (RepositoryException, OSError):
 
 
 def get_doc_url(page, anchor=''):
-    '''
-    Return URL to documentation.
-    '''
+    """Return URL to documentation."""
     # Should we use tagged release or latest version
     if '-dev' in VERSION:
         version = 'latest'
     else:
-        version = 'weblate-%s' % VERSION
+        version = 'weblate-{0}'.format(VERSION)
     # Generate URL
-    url = 'https://docs.weblate.org/en/%s/%s.html' % (version, page)
+    url = 'https://docs.weblate.org/en/{0}/{1}.html'.format(version, page)
     # Optionally append anchor
     if anchor != '':
-        url += '#%s' % anchor
+        url += '#{0}'.format(anchor)
 
     return url
 
 
 def get_versions_list():
-    '''
-    Returns list with version information summary.
-    '''
+    """Return list with version information summary."""
     return (
         [('Weblate', '', GIT_VERSION)] +
         get_versions() +
@@ -85,15 +79,13 @@ def get_versions_list():
 
 
 def get_versions_string():
-    '''
-    Returns string with version information summary.
-    '''
+    """Return string with version information summary."""
     result = []
     for version in get_versions_list():
         result.append(
-            ' * %s %s' % (
+            ' * {0} {1}'.format(
                 version[0],
-                version[2],
+                version[2]
             )
         )
     return '\n'.join(result)

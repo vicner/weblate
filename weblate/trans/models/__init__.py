@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,16 +15,21 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 import os
 import shutil
 
+from django.contrib.auth.models import Group, Permission
+from django.db.models import Q
 from django.db.models.signals import post_delete, post_save, m2m_changed
 from django.dispatch import receiver
 
 from weblate.accounts.models import Profile
+from weblate.permissions.data import ADMIN_PERMS, ADMIN_ONLY_PERMS
+from weblate.permissions.models import GroupACL
+from weblate.trans.models.conf import WeblateConf
 from weblate.trans.models.project import Project
 from weblate.trans.models.subproject import SubProject
 from weblate.trans.models.translation import Translation
@@ -35,12 +40,12 @@ from weblate.trans.models.check import Check
 from weblate.trans.models.search import IndexUpdate
 from weblate.trans.models.change import Change
 from weblate.trans.models.dictionary import Dictionary
-from weblate.trans.models.group_acl import GroupACL
 from weblate.trans.models.source import Source
 from weblate.trans.models.advertisement import Advertisement
 from weblate.trans.models.whiteboard import WhiteboardMessage
-from weblate.trans.models.componentlist import ComponentList
-from weblate.trans.search import clean_search_unit
+from weblate.trans.models.componentlist import (
+    ComponentList, AutoComponentList,
+)
 from weblate.trans.signals import (
     vcs_post_push, vcs_post_update, vcs_pre_commit, vcs_post_commit,
     user_pre_delete, translation_post_add,
@@ -49,20 +54,20 @@ from weblate.trans.scripts import (
     run_post_push_script, run_post_update_script, run_pre_commit_script,
     run_post_commit_script, run_post_add_script,
 )
+from weblate.utils.decorators import disable_for_loaddata
 
 __all__ = [
     'Project', 'SubProject', 'Translation', 'Unit', 'Check', 'Suggestion',
     'Comment', 'Vote', 'IndexUpdate', 'Change', 'Dictionary', 'Source',
-    'Advertisement', 'WhiteboardMessage', 'GroupACL', 'ComponentList',
+    'Advertisement', 'WhiteboardMessage', 'ComponentList',
+    'WeblateConf',
 ]
 
 
 @receiver(post_delete, sender=Project)
 @receiver(post_delete, sender=SubProject)
 def delete_object_dir(sender, instance, **kwargs):
-    """
-    Handler to delete (sub)project directory on project deletion.
-    """
+    """Handler to delete (sub)project directory on project deletion."""
     # Do not delete linked subprojects
     if hasattr(instance, 'is_repo_link') and instance.is_repo_link:
         return
@@ -75,12 +80,11 @@ def delete_object_dir(sender, instance, **kwargs):
 
 
 @receiver(post_save, sender=Source)
+@disable_for_loaddata
 def update_source(sender, instance, **kwargs):
-    """
-    Updates unit priority or checks based on source change.
-    """
+    """Update unit priority or checks based on source change."""
     related_units = Unit.objects.filter(
-        checksum=instance.checksum,
+        id_hash=instance.id_hash,
         translation__subproject=instance.subproject,
     )
     if instance.priority_modified:
@@ -95,11 +99,9 @@ def update_source(sender, instance, **kwargs):
 
 
 def get_related_units(unitdata):
-    '''
-    Returns queryset with related units.
-    '''
+    """Return queryset with related units."""
     related_units = Unit.objects.filter(
-        contentsum=unitdata.contentsum,
+        content_hash=unitdata.content_hash,
         translation__subproject__project=unitdata.project,
     )
     if unitdata.language is not None:
@@ -114,10 +116,9 @@ def get_related_units(unitdata):
 
 
 @receiver(post_save, sender=Check)
+@disable_for_loaddata
 def update_failed_check_flag(sender, instance, **kwargs):
-    """
-    Update related unit failed check flag.
-    """
+    """Update related unit failed check flag."""
     if instance.language is None:
         return
     related = get_related_units(instance)
@@ -129,10 +130,9 @@ def update_failed_check_flag(sender, instance, **kwargs):
 
 @receiver(post_delete, sender=Comment)
 @receiver(post_save, sender=Comment)
+@disable_for_loaddata
 def update_comment_flag(sender, instance, **kwargs):
-    """
-    Update related unit comment flags
-    """
+    """Update related unit comment flags"""
     for unit in get_related_units(instance):
         # Update unit stats
         unit.update_has_comment()
@@ -144,74 +144,12 @@ def update_comment_flag(sender, instance, **kwargs):
 
 @receiver(post_delete, sender=Suggestion)
 @receiver(post_save, sender=Suggestion)
+@disable_for_loaddata
 def update_suggestion_flag(sender, instance, **kwargs):
-    """
-    Update related unit suggestion flags
-    """
+    """Update related unit suggestion flags"""
     for unit in get_related_units(instance):
         # Update unit stats
         unit.update_has_suggestion()
-
-
-@receiver(post_delete, sender=Unit)
-def cleanup_deleted(sender, instance, **kwargs):
-    '''
-    Removes stale checks/comments/suggestions for deleted units.
-    '''
-    project = instance.translation.subproject.project
-    language = instance.translation.language
-    contentsum = instance.contentsum
-    units = Unit.objects.filter(
-        translation__language=language,
-        translation__subproject__project=project,
-        contentsum=contentsum
-    )
-    if units.exists():
-        # There are other units as well, but some checks
-        # (eg. consistency) needs update now
-        for unit in units:
-            unit.run_checks()
-        return
-
-    # Last unit referencing to these checks
-    Check.objects.filter(
-        project=project,
-        language=language,
-        contentsum=contentsum
-    ).delete()
-    # Delete suggestons referencing this unit
-    Suggestion.objects.filter(
-        project=project,
-        language=language,
-        contentsum=contentsum
-    ).delete()
-    # Delete translation comments referencing this unit
-    Comment.objects.filter(
-        project=project,
-        language=language,
-        contentsum=contentsum
-    ).delete()
-    # Check for other units with same source
-    other_units = Unit.objects.filter(
-        translation__subproject__project=project,
-        contentsum=contentsum
-    )
-    if not other_units.exists():
-        # Delete source comments as well if this was last reference
-        Comment.objects.filter(
-            project=project,
-            language=None,
-            contentsum=contentsum
-        ).delete()
-        # Delete source checks as well if this was last reference
-        Check.objects.filter(
-            project=project,
-            language=None,
-            contentsum=contentsum
-        ).delete()
-
-    # Cleanup fulltext index
-    clean_search_unit(instance.pk, language.code)
 
 
 @receiver(vcs_post_push)
@@ -281,3 +219,57 @@ def add_user_subscription(sender, instance, action, reverse, model, pk_set,
     else:
         for target in targets:
             target.add_subscription(instance.user)
+
+
+@receiver(post_save, sender=AutoComponentList)
+@disable_for_loaddata
+def auto_componentlist(sender, instance, **kwargs):
+    for component in SubProject.objects.all():
+        instance.check_match(component)
+
+
+@receiver(post_save, sender=Project)
+@disable_for_loaddata
+def auto_project_componentlist(sender, instance, **kwargs):
+    for component in instance.subproject_set.all():
+        auto_component_list(sender, component)
+
+
+@receiver(post_save, sender=SubProject)
+@disable_for_loaddata
+def auto_component_list(sender, instance, **kwargs):
+    for auto in AutoComponentList.objects.all():
+        auto.check_match(instance)
+
+
+@receiver(post_save, sender=Project)
+@disable_for_loaddata
+def setup_group_acl(sender, instance, **kwargs):
+    """Setup Group and GroupACL objects on project save."""
+    group_acl = GroupACL.objects.get_or_create(
+        project=instance, subproject=None, language=None
+    )[0]
+    if instance.enable_acl:
+        group_acl.permissions.set(
+            Permission.objects.filter(codename__in=ADMIN_PERMS)
+        )
+        lookup = Q(name__startswith='@')
+    else:
+        group_acl.permissions.set(
+            Permission.objects.filter(codename__in=ADMIN_ONLY_PERMS)
+        )
+        lookup = Q(name='@Administration')
+
+    for template_group in Group.objects.filter(lookup):
+        name = '{0}{1}'.format(instance.name, template_group.name)
+        try:
+            group = group_acl.groups.get(name__endswith=template_group.name)
+            # Update exiting group (to hanle rename)
+            if group.name != name:
+                group.name = name
+                group.save()
+        except Group.DoesNotExist:
+            # Create new group
+            group = Group.objects.get_or_create(name=name)[0]
+            group.permissions.set(template_group.permissions.all())
+            group_acl.groups.add(group)

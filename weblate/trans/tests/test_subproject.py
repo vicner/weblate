@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,12 +15,10 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""
-Tests for translation models.
-"""
+"""Test for translation models."""
 
 import os
 import shutil
@@ -29,17 +27,14 @@ from django.core.exceptions import ValidationError
 
 from weblate.trans.formats import ParseError
 from weblate.trans.models import (
-    Project, SubProject, Unit, Suggestion, IndexUpdate,
+    Project, SubProject, Unit, Suggestion,
 )
-from weblate.trans.tests import OverrideSettings
 from weblate.trans.tests.test_models import RepoTestCase
 from weblate.trans.tests.test_views import ViewTestCase
 
 
 class SubProjectTest(RepoTestCase):
-    """
-    SubProject object testing.
-    """
+    """SubProject object testing."""
     def verify_subproject(self, project, translations, lang=None, units=0,
                           unit='Hello, world!\n', fail=False):
         # Validation
@@ -171,6 +166,14 @@ class SubProjectTest(RepoTestCase):
         project = self.create_json_mono()
         self.verify_subproject(project, 2, 'cs', 4)
 
+    def test_create_json_nested(self):
+        project = self.create_json_nested()
+        self.verify_subproject(project, 2, 'cs', 4)
+
+    def test_create_joomla(self):
+        project = self.create_joomla()
+        self.verify_subproject(project, 3, 'cs', 4)
+
     def test_create_tsv_simple(self):
         project = self._create_subproject(
             'csv-simple',
@@ -246,9 +249,7 @@ class SubProjectTest(RepoTestCase):
         self.verify_subproject(project, 3, 'cs', 4)
 
     def test_extra_file(self):
-        """
-        Extra commit file validation.
-        """
+        """Extra commit file validation."""
         project = self.create_subproject()
         project.full_clean()
 
@@ -266,9 +267,7 @@ class SubProjectTest(RepoTestCase):
         )
 
     def test_check_flags(self):
-        """
-        Check flags validation.
-        """
+        """Check flags validation."""
         project = self.create_subproject()
         project.full_clean()
 
@@ -303,32 +302,13 @@ class SubProjectTest(RepoTestCase):
 
 
 class SubProjectDeleteTest(RepoTestCase):
-    """
-    SubProject object deleting testing.
-    """
+    """SubProject object deleting testing."""
     def test_delete(self):
         project = self.create_subproject()
         self.assertTrue(os.path.exists(project.get_path()))
         project.delete()
         self.assertFalse(os.path.exists(project.get_path()))
         self.assertEqual(0, SubProject.objects.count())
-
-    @OverrideSettings(OFFLOAD_INDEXING=False)
-    def test_delete_no_offload(self):
-        project = self.create_subproject()
-        project.delete()
-        self.assertEqual(0, IndexUpdate.objects.count())
-
-    @OverrideSettings(OFFLOAD_INDEXING=True)
-    def test_delete_offload(self):
-        project = self.create_subproject()
-        project.delete()
-        self.assertEqual(
-            12, IndexUpdate.objects.count()
-        )
-        self.assertEqual(
-            12, IndexUpdate.objects.filter(to_delete=True).count()
-        )
 
     def test_delete_link(self):
         project = self.create_link()
@@ -345,9 +325,7 @@ class SubProjectDeleteTest(RepoTestCase):
 
 
 class SubProjectChangeTest(RepoTestCase):
-    """
-    SubProject object change testing.
-    """
+    """SubProject object change testing."""
     def test_rename(self):
         subproject = self.create_subproject()
         old_path = subproject.get_path()
@@ -363,7 +341,7 @@ class SubProjectChangeTest(RepoTestCase):
         # Create and verify suggestion
         Suggestion.objects.create(
             project=subproject.project,
-            contentsum='x',
+            content_hash=1,
             language=subproject.translation_set.all()[0].language,
         )
         self.assertEqual(subproject.project.suggestion_set.count(), 1)
@@ -407,9 +385,7 @@ class SubProjectChangeTest(RepoTestCase):
 
 
 class SubProjectValidationTest(RepoTestCase):
-    """
-    SubProject object validation testing.
-    """
+    """SubProject object validation testing."""
     def setUp(self):
         super(SubProjectValidationTest, self).setUp()
         self.component = self.create_subproject()
@@ -573,16 +549,32 @@ class SubProjectValidationTest(RepoTestCase):
             ]
         )
 
+    def test_lang_code_double(self):
+        subproject = SubProject()
+        subproject.filemask = 'path/*/resources/MessagesBundle_*.properties'
+        self.assertEqual(
+            subproject.get_lang_code(
+                'path/pt/resources/MessagesBundle_pt_BR.properties'
+            ),
+            'pt_BR'
+        )
+        self.assertEqual(
+            subproject.get_lang_code(
+                'path/el/resources/MessagesBundle_el.properties'
+            ),
+            'el'
+        )
+
 
 class SubProjectErrorTest(RepoTestCase):
-    """Tests for error handling"""
+    """Test for error handling"""
 
     def setUp(self):
         super(SubProjectErrorTest, self).setUp()
         self.component = self.create_ts_mono()
         # Change to invalid pull/push URL
         repository = self.component.repository
-        with repository.lock():
+        with repository.lock:
             repository.configure_remote(
                 'file:/dev/null',
                 'file:/dev/null',
@@ -603,7 +595,7 @@ class SubProjectErrorTest(RepoTestCase):
         testfile = os.path.join(self.component.get_path(), 'README.md')
         with open(testfile, 'a') as handle:
             handle.write('CHANGE')
-        with self.component.repository.lock():
+        with self.component.repository.lock:
             self.component.repository.commit('test', files=['README.md'])
         self.assertFalse(
             self.component.do_push(None)
@@ -677,7 +669,7 @@ class SubProjectErrorTest(RepoTestCase):
 
 
 class SubProjectEditTest(ViewTestCase):
-    """Tests for error handling"""
+    """Test for error handling"""
     @staticmethod
     def remove_units(store):
         store.units = []
@@ -703,7 +695,7 @@ class SubProjectEditTest(ViewTestCase):
 
 
 class SubProjectEditMonoTest(SubProjectEditTest):
-    """Tests for error handling"""
+    """Test for error handling"""
     def create_subproject(self):
         return self.create_ts_mono()
 

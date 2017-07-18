@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,12 +15,10 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""
-Tests for search views.
-"""
+"""Test for search views."""
 
 from __future__ import unicode_literals
 
@@ -32,8 +30,10 @@ from unittest import TestCase
 from whoosh.filedb.filestore import FileStorage
 from whoosh.fields import Schema, ID, TEXT
 from django.core.urlresolvers import reverse
+from django.test.utils import override_settings
+from django.http import QueryDict
+
 from weblate.trans.tests.test_views import ViewTestCase
-from weblate.trans.tests import OverrideSettings
 from weblate.trans.search import update_index_unit, fulltext_search
 import weblate.trans.search
 from weblate.trans.models import IndexUpdate
@@ -48,9 +48,7 @@ class SearchViewTest(ViewTestCase):
         self.translate_url = self.translation.get_translate_url()
 
     def do_search(self, params, expected, url=None):
-        '''
-        Helper method for performing search test.
-        '''
+        """Helper method for performing search test."""
         if url is None:
             url = self.translate_url
         response = self.client.get(url, params)
@@ -67,9 +65,7 @@ class SearchViewTest(ViewTestCase):
         return response
 
     def test_all_search(self):
-        '''
-        Searching in all projects.
-        '''
+        """Searching in all projects."""
         response = self.client.get(
             reverse('search'),
             {'q': 'hello'}
@@ -122,10 +118,7 @@ class SearchViewTest(ViewTestCase):
             reverse('search'),
             {'type': 'xxx'}
         )
-        self.assertContains(
-            response,
-            'xxx is not one of the available choices.'
-        )
+        self.assertContains(response, 'Please select a valid filter type.')
 
     def test_pagination(self):
         response = self.client.get(
@@ -154,9 +147,7 @@ class SearchViewTest(ViewTestCase):
         )
 
     def test_language_search(self):
-        '''
-        Searching in all projects.
-        '''
+        """Searching in all projects."""
         response = self.client.get(
             reverse('search'),
             {'q': 'hello', 'lang': 'cs'}
@@ -167,13 +158,37 @@ class SearchViewTest(ViewTestCase):
         )
 
     def test_project_search(self):
-        '''
-        Searching within project.
-        '''
+        """Searching within project."""
+        # Default
+        response = self.client.get(
+            reverse('search', kwargs=self.kw_project),
+            {'q': 'hello'}
+        )
+        self.assertContains(
+            response,
+            '<span class="hlmatch">Hello</span>, world'
+        )
+
+    def test_project_language_search(self):
+        """Searching within project."""
+        response = self.client.get(
+            reverse(
+                'search',
+                kwargs={'project': self.project.slug, 'lang': 'cs'}
+            ),
+            {'q': 'hello'}
+        )
+        self.assertContains(
+            response,
+            '<span class="hlmatch">Hello</span>, world'
+        )
+
+    def test_translation_search(self):
+        """Searching within translation."""
         # Default
         self.do_search(
             {'q': 'hello'},
-            'Fulltext search for'
+            'Substring search for'
         )
         # Fulltext
         self.do_search(
@@ -203,7 +218,21 @@ class SearchViewTest(ViewTestCase):
         # Wrong type
         self.do_search(
             {'q': 'xxxxx', 'search': 'xxxx'},
-            'Select a valid choice. xxxx is not one of the available choices.'
+            'Please select a valid search type.'
+        )
+
+    def test_random(self):
+        self.edit_unit(
+            'Hello, world!\n',
+            'Nazdar svete!\n'
+        )
+        self.do_search(
+            {'type': 'random'},
+            'Nazdar svete'
+        )
+        self.do_search(
+            {'type': 'random', 'q': 'hello'},
+            'Nazdar svete'
         )
 
     def test_review(self):
@@ -218,122 +247,63 @@ class SearchViewTest(ViewTestCase):
             'Enter a valid date.'
         )
 
+    def extract_params(self, response):
+        search_url = re.findall(
+            r'data-params="([^"]*)"',
+            response.content.decode('utf-8')
+        )[0]
+        return QueryDict(search_url, mutable=True)
+
     def test_search_links(self):
         response = self.do_search(
             {'q': 'Weblate', 'search': 'substring'},
             'Substring search for'
         )
-        # Extract search ID
-        search_id = re.findall(
-            r'sid=([0-9a-f-]*)&amp',
-            response.content.decode('utf-8')
-        )[0]
+        # Extract search URL
+        params = self.extract_params(response)
         # Try access to pages
-        response = self.client.get(
-            self.translate_url,
-            {'sid': search_id, 'offset': 0}
-        )
-        self.assertContains(
+        params['offset'] = 0
+        response = self.client.get(self.translate_url, params)
+        self.assertContains(response, 'https://demo.weblate.org/')
+        params['offset'] = 1
+        response = self.client.get(self.translate_url, params)
+        self.assertContains(response, 'Thank you for using Weblate.')
+        # Invalid offset
+        params['offset'] = 'bug'
+        response = self.client.get(self.translate_url, params)
+        self.assertContains(response, 'https://demo.weblate.org/')
+        # Go to end
+        params['offset'] = 2
+        response = self.client.get(self.translate_url, params)
+        self.assertRedirects(
             response,
-            'http://demo.weblate.org/',
+            self.translation.get_absolute_url()
         )
-        response = self.client.get(
-            self.translate_url,
-            {'sid': search_id, 'offset': 1}
-        )
+        # Try no longer cached query (should be deleted above)
+        params['offset'] = 1
+        response = self.client.get(self.translate_url, params)
         self.assertContains(
             response,
             'Thank you for using Weblate.',
         )
-        # Invalid offset
-        response = self.client.get(
-            self.translate_url,
-            {'sid': search_id, 'offset': 'bug'}
-        )
-        self.assertContains(
-            response,
-            'http://demo.weblate.org/',
-        )
-        # Go to end
-        response = self.client.get(
-            self.translate_url,
-            {'sid': search_id, 'offset': 2}
-        )
-        self.assertRedirects(
-            response,
-            self.translation.get_absolute_url()
-        )
-        # Try invalid SID (should be deleted above)
-        response = self.client.get(
-            self.translate_url,
-            {'sid': search_id, 'offset': 1}
-        )
-        self.assertRedirects(
-            response,
-            self.translation.get_absolute_url()
-        )
-
-    def test_invalid_sid(self):
-        response = self.client.get(
-            self.translate_url,
-            {'sid': 'invalid'}
-        )
-        self.assertRedirects(
-            response,
-            self.translation.get_absolute_url()
-        )
-
-    def test_mixed_sid(self):
-        """
-        Tests using SID from other translation.
-        """
-        translation = self.subproject.translation_set.get(
-            language_code='de'
-        )
-        response = self.do_search(
-            {'q': 'Weblate', 'search': 'substring'},
-            'Substring search for',
-            url=translation.get_translate_url()
-        )
-        search_id = re.findall(
-            r'sid=([0-9a-f-]*)&amp',
-            response.content.decode('utf-8')
-        )[0]
-        response = self.client.get(
-            self.translate_url,
-            {'sid': search_id, 'offset': 0}
-        )
-        self.assertRedirects(
-            response,
-            self.translation.get_absolute_url()
-        )
 
     def test_search_checksum(self):
         unit = self.translation.unit_set.get(
-            source='Try Weblate at <http://demo.weblate.org/>!\n'
+            source='Try Weblate at <https://demo.weblate.org/>!\n'
         )
         response = self.do_search(
             {'checksum': unit.checksum},
             '3 / 4'
         )
         # Extract search ID
-        search_id = re.findall(
-            r'sid=([0-9a-f-]*)&amp',
-            response.content.decode('utf-8')
-        )[0]
+        params = self.extract_params(response)
         # Navigation
-        response = self.do_search(
-            {'sid': search_id, 'offset': 0},
-            '1 / 4'
-        )
-        response = self.do_search(
-            {'sid': search_id, 'offset': 3},
-            '4 / 4'
-        )
-        response = self.do_search(
-            {'sid': search_id, 'offset': 4},
-            None
-        )
+        params['offset'] = 0
+        response = self.do_search(params, '1 / 4')
+        params['offset'] = 3
+        response = self.do_search(params, '4 / 4')
+        params['offset'] = 4
+        response = self.do_search(params, None)
 
     def test_search_type(self):
         self.do_search(
@@ -353,7 +323,7 @@ class SearchViewTest(ViewTestCase):
             None
         )
         self.do_search(
-            {'type': 'plurals'},
+            {'type': 'check:plurals'},
             None
         )
         self.do_search(
@@ -364,11 +334,11 @@ class SearchViewTest(ViewTestCase):
     def test_search_errors(self):
         self.do_search(
             {'type': 'nonexisting-type'},
-            'nonexisting-type is not one of the available choices'
+            'Please select a valid filter type.',
         )
         self.do_search(
             {'date': 'nonexisting'},
-            'date: Enter a valid date.'
+            'Enter a valid date.'
         )
 
     def test_search_plural(self):
@@ -382,10 +352,9 @@ class SearchViewTest(ViewTestCase):
         self.assertNotContains(response, 'Plural form ')
 
     def test_checksum(self):
-        response = self.do_search({'checksum': 'invalid'}, None)
-        self.assertRedirects(
-            response,
-            self.get_translation().get_absolute_url()
+        self.do_search(
+            {'checksum': 'invalid'},
+            'Invalid checksum specified!'
         )
 
 
@@ -403,12 +372,12 @@ class SearchBackendTest(ViewTestCase):
         update_index_unit(unit, True)
         update_index_unit(unit, True)
 
-    @OverrideSettings(OFFLOAD_INDEXING=False)
+    @override_settings(OFFLOAD_INDEXING=False)
     def test_add(self):
         self.do_index_update()
         self.assertEqual(IndexUpdate.objects.count(), 0)
 
-    @OverrideSettings(OFFLOAD_INDEXING=True)
+    @override_settings(OFFLOAD_INDEXING=True)
     def test_add_offload(self):
         self.do_index_update()
         self.assertEqual(IndexUpdate.objects.count(), 1)

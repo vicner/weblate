@@ -16,20 +16,24 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 import os
 import sys
 from django.core.wsgi import get_wsgi_application
 
+VIRTUALENV = os.path.join(
+    os.environ['OPENSHIFT_PYTHON_DIR'], 'virtenv', 'bin', 'activate_this.py'
+)
+
 sys.path.append(os.path.join(os.environ['OPENSHIFT_REPO_DIR'], 'weblate'))
 sys.path.append(os.path.join(os.environ['OPENSHIFT_REPO_DIR'], 'openshift'))
 
 os.environ['DJANGO_SETTINGS_MODULE'] = 'weblate.settings_openshift'
 
-exec(open(os.path.join(
-    os.environ['OPENSHIFT_REPO_DIR'], 'openshift', 'virtualenv.py'
-)).read())
+with open(VIRTUALENV) as handle:
+    code = compile(handle.read(), 'activate_this.py', 'exec')
+    exec(code, dict(__file__=VIRTUALENV))  # noqa
 
 application = get_wsgi_application()

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,12 +15,10 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""
-Tests for translation views.
-"""
+"""Test for translation views."""
 
 from xml.dom import minidom
 from io import BytesIO
@@ -30,21 +28,22 @@ from six.moves.urllib.parse import urlsplit
 from PIL import Image
 
 from django.test.client import RequestFactory
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import Group, User, Permission
 from django.core.urlresolvers import reverse
 from django.contrib.messages.storage.fallback import FallbackStorage
+from django.core.management import call_command
 from django.core import mail
 
 from weblate.lang.models import Language
-from weblate.trans.models import ComponentList, WhiteboardMessage
+from weblate.trans.models import (
+    ComponentList, WhiteboardMessage, Project, setup_group_acl,
+)
 from weblate.trans.tests.test_models import RepoTestCase
 from weblate.accounts.models import Profile
 
 
 class RegistrationTestMixin(object):
-    """
-    Helper to share code for registration testing.
-    """
+    """Helper to share code for registration testing."""
     def assert_registration_mailbox(self, match=None):
         if match is None:
             match = '[Weblate] Your registration on Weblate'
@@ -108,16 +107,16 @@ class ViewTestCase(RepoTestCase):
         self.subproject_url = self.subproject.get_absolute_url()
 
     def make_manager(self):
-        """
-        Makes user a Manager.
-        """
-        group = Group.objects.get(name='Managers')
-        self.user.groups.add(group)
+        """Make user a Manager."""
+        # Sitewide privileges
+        self.user.groups.add(
+            Group.objects.get(name='Managers')
+        )
+        # Project privileges
+        self.project.add_user(self.user, '@Administration')
 
     def get_request(self, *args, **kwargs):
-        '''
-        Wrapper to get fake request object.
-        '''
+        """Wrapper to get fake request object."""
         request = self.factory.get(*args, **kwargs)
         request.user = self.user
         setattr(request, 'session', 'session')
@@ -140,9 +139,7 @@ class ViewTestCase(RepoTestCase):
         unit.save_backend(self.get_request('/'))
 
     def edit_unit(self, source, target, **kwargs):
-        '''
-        Does edit single unit using web interface.
-        '''
+        """Do edit single unit using web interface."""
         unit = self.get_unit(source)
         params = {
             'checksum': unit.checksum,
@@ -154,10 +151,8 @@ class ViewTestCase(RepoTestCase):
             params
         )
 
-    def assertRedirectsOffset(self, response, exp_path, exp_offset):
-        '''
-        Asserts that offset in response matches expected one.
-        '''
+    def assert_redirects_offset(self, response, exp_path, exp_offset):
+        """Assert that offset in response matches expected one."""
         self.assertEqual(response.status_code, 302)
 
         # We don't use all variables
@@ -166,39 +161,33 @@ class ViewTestCase(RepoTestCase):
 
         self.assertEqual(path, exp_path)
 
-        exp_offset = 'offset=%d' % exp_offset
+        exp_offset = 'offset={0:d}'.format(exp_offset)
         self.assertTrue(
             exp_offset in query,
-            'Offset %s not in %s' % (exp_offset, query)
+            'Offset {0} not in {1}'.format(exp_offset, query)
         )
 
-    def assertPNG(self, response):
-        '''
-        Checks whether response contains valid PNG image.
-        '''
+    def assert_png(self, response):
+        """Check whether response contains valid PNG image."""
         # Check response status code
         self.assertEqual(response.status_code, 200)
-        self.assertPNGData(response.content)
+        self.assert_png_data(response.content)
 
-    def assertPNGData(self, content):
-        """Checks whether data is PNG image"""
+    def assert_png_data(self, content):
+        """Check whether data is PNG image"""
         # Try to load PNG with PIL
         image = Image.open(BytesIO(content))
         self.assertEqual(image.format, 'PNG')
 
-    def assertSVG(self, response):
-        """
-        Checks whether response is a SVG image.
-        """
+    def assert_svg(self, response):
+        """Check whether response is a SVG image."""
         # Check response status code
         self.assertEqual(response.status_code, 200)
         dom = minidom.parseString(response.content)
         self.assertEqual(dom.firstChild.nodeName, 'svg')
 
-    def assertBackend(self, expected_translated):
-        '''
-        Checks that backend has correct data.
-        '''
+    def assert_backend(self, expected_translated):
+        """Check that backend has correct data."""
         translation = self.get_translation()
         store = translation.subproject.file_format_cls(
             translation.get_filename(),
@@ -210,9 +199,9 @@ class ViewTestCase(RepoTestCase):
         for unit in store.all_units():
             if not unit.is_translatable():
                 continue
-            checksum = unit.get_checksum()
+            id_hash = unit.get_id_hash()
             self.assertFalse(
-                checksum in messages,
+                id_hash in messages,
                 'Duplicate string in in backend file!'
             )
             if unit.is_translated():
@@ -226,6 +215,37 @@ class ViewTestCase(RepoTestCase):
                 translated, expected_translated
             )
         )
+
+
+class FixtureTestCase(ViewTestCase):
+    @classmethod
+    def setUpTestData(cls):
+        """Manually load fixture."""
+        # Ensure there are no Language objects, we add
+        # them in defined order in fixture
+        Language.objects.all().delete()
+
+        # Stolen from setUpClass, we just need to do it
+        # after transaction checkpoint and deleting languages
+        for db_name in cls._databases_names(include_mirrors=False):
+            call_command(
+                'loaddata', 'simple-project.json',
+                verbosity=0,
+                commit=False,
+                database=db_name
+            )
+        super(FixtureTestCase, cls).setUpTestData()
+
+    def clone_test_repos(self):
+        return
+
+    def create_project(self):
+        project = Project.objects.all()[0]
+        setup_group_acl(self, project)
+        return project
+
+    def create_subproject(self):
+        return self.create_project().subproject_set.all()[0]
 
 
 class TranslationManipulationTest(ViewTestCase):
@@ -290,7 +310,10 @@ class NewLangTest(ViewTestCase):
         return self.create_po_new_base()
 
     def test_no_permission(self):
-        self.user.groups.clear()
+        # Remove permission to add translations
+        Group.objects.get(name='Users').permissions.remove(
+            Permission.objects.get(codename='add_translation')
+        )
 
         # Test there is no add form
         response = self.client.get(
@@ -392,7 +415,7 @@ class NewLangTest(ViewTestCase):
         )
         self.assertContains(
             response,
-            'Invalid language chosen'
+            'Please fix errors in the form'
         )
 
         # Existing language
@@ -403,11 +426,11 @@ class NewLangTest(ViewTestCase):
         )
         self.assertContains(
             response,
-            'Invalid language chosen'
+            'Please fix errors in the form'
         )
 
     def test_add_owner(self):
-        self.subproject.project.owners.add(self.user)
+        self.subproject.project.add_user(self.user, '@Administration')
         # None chosen
         response = self.client.post(
             reverse('new-language', kwargs=self.kw_subproject),
@@ -415,7 +438,7 @@ class NewLangTest(ViewTestCase):
         )
         self.assertContains(
             response,
-            'Invalid language chosen'
+            'Please fix errors in the form'
         )
         # One chosen
         response = self.client.post(
@@ -425,7 +448,7 @@ class NewLangTest(ViewTestCase):
         )
         self.assertNotContains(
             response,
-            'Invalid language chosen'
+            'Please fix errors in the form'
         )
         # More chosen
         response = self.client.post(
@@ -435,7 +458,7 @@ class NewLangTest(ViewTestCase):
         )
         self.assertNotContains(
             response,
-            'Invalid language chosen'
+            'Please fix errors in the form'
         )
         self.assertEqual(
             self.subproject.translation_set.filter(
@@ -443,6 +466,16 @@ class NewLangTest(ViewTestCase):
             ).count(),
             4
         )
+
+    def test_remove(self):
+        self.test_add_owner()
+        kwargs = {'lang': 'af'}
+        kwargs.update(self.kw_subproject)
+        response = self.client.post(
+            reverse('remove_translation', kwargs=kwargs),
+            follow=True
+        )
+        self.assertContains(response, 'Translation has been removed.')
 
 
 class AndroidNewLangTest(NewLangTest):
@@ -523,7 +556,7 @@ class BasicLinkViewTest(BasicViewTest):
 
 
 class HomeViewTest(ViewTestCase):
-    """Tests for home/inidex view."""
+    """Test for home/inidex view."""
     def test_view_home(self):
         response = self.client.get(reverse('home'))
         self.assertContains(response, 'Test/Test')
@@ -576,7 +609,7 @@ class HomeViewTest(ViewTestCase):
     def test_language_filters(self):
         # check language filters
         response = self.client.get(reverse('home'))
-        self.assertFalse(response.context['userlanguages'])
+        self.assertEqual(len(response.context['userlanguages']), 3)
         self.assertFalse(response.context['usersubscriptions'])
 
         # add a language

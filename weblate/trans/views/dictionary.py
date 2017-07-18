@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,44 +15,48 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-import csv
 import sys
 
+from django.db.models.functions import Lower
 from django.shortcuts import get_object_or_404, redirect
 from django.utils.encoding import force_text
 from django.utils.translation import ugettext as _, ungettext
-from django.http import HttpResponse, HttpResponseRedirect
-from django.contrib.auth.decorators import permission_required
+from django.http import JsonResponse
+from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.core.urlresolvers import reverse
+from django.template.loader import render_to_string
+from django.utils.http import urlencode
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_POST
 
-import six
-from six.moves.urllib.parse import urlencode
-
-from weblate.trans import messages
+from weblate.utils import messages
 from weblate.trans.exporters import get_exporter
-from weblate.trans.models import Translation, Dictionary, Change
+from weblate.trans.models import Translation, Dictionary, Change, Unit
 from weblate.lang.models import Language
 from weblate.trans.site import get_site_url
 from weblate.utils.errors import report_error
-from weblate.trans.util import render
+from weblate.trans.util import render, redirect_next, redirect_param
 from weblate.trans.forms import WordForm, DictUploadForm, LetterForm
+from weblate.permissions.helpers import (
+    can_add_dictionary, can_upload_dictionary, can_delete_dictionary,
+    can_change_dictionary, check_access,
+)
 from weblate.trans.views.helper import get_project, import_message
 
 
 def dict_title(prj, lang):
-    """
-    Returns dictionary title.
-    """
+    """Return dictionary title."""
     return _('%(language)s dictionary for %(project)s') % {
         'language': lang,
         'project': prj
     }
 
 
+@never_cache
 def show_dictionaries(request, project):
     obj = get_project(request, project)
     dicts = Translation.objects.filter(
@@ -70,15 +74,17 @@ def show_dictionaries(request, project):
     )
 
 
-@permission_required('trans.change_dictionary')
-def edit_dictionary(request, project, lang):
+@never_cache
+def edit_dictionary(request, project, lang, pk):
     prj = get_project(request, project)
+    if not can_change_dictionary(request.user, prj):
+        raise PermissionDenied()
     lang = get_object_or_404(Language, code=lang)
     word = get_object_or_404(
         Dictionary,
         project=prj,
         language=lang,
-        id=request.GET.get('id')
+        id=pk,
     )
 
     if request.method == 'POST':
@@ -121,29 +127,45 @@ def edit_dictionary(request, project, lang):
     )
 
 
-@permission_required('trans.delete_dictionary')
-def delete_dictionary(request, project, lang):
+@require_POST
+def delete_dictionary(request, project, lang, pk):
     prj = get_project(request, project)
+    if not can_delete_dictionary(request.user, prj):
+        raise PermissionDenied()
+
     lang = get_object_or_404(Language, code=lang)
     word = get_object_or_404(
         Dictionary,
         project=prj,
         language=lang,
-        id=request.POST.get('id')
+        id=pk
     )
 
     word.delete()
 
-    return redirect(
+    params = {}
+    for param in ('letter', 'limit', 'page'):
+        if param in request.POST:
+            params[param] = request.POST[param]
+
+    if params:
+        param = '?' + urlencode(params)
+    else:
+        param = ''
+
+    return redirect_param(
         'show_dictionary',
+        param,
         project=prj.slug,
         lang=lang.code
     )
 
 
-@permission_required('trans.upload_dictionary')
+@require_POST
 def upload_dictionary(request, project, lang):
     prj = get_project(request, project)
+    if not can_upload_dictionary(request.user, prj):
+        raise PermissionDenied()
     lang = get_object_or_404(Language, code=lang)
 
     form = DictUploadForm(request.POST, request.FILES)
@@ -179,32 +201,9 @@ def upload_dictionary(request, project, lang):
     )
 
 
-def download_dictionary_ttkit(export_format, prj, lang, words):
-    '''
-    Translate-toolkit builder for dictionary downloads.
-    '''
-    exporter = get_exporter(export_format)(
-        prj, lang,
-        get_site_url(reverse(
-            'show_dictionary',
-            kwargs={'project': prj.slug, 'lang': lang.code}
-        ))
-    )
-
-    # Add words
-    for word in words.iterator():
-        exporter.add_dictionary(word)
-
-    # Save to response
-    return exporter.get_response(
-        'glossary-{project}-{language}.{extension}'
-    )
-
-
+@never_cache
 def download_dictionary(request, project, lang):
-    '''
-    Exports dictionary into various formats.
-    '''
+    """Export dictionary into various formats."""
     prj = get_project(request, project)
     lang = get_object_or_404(Language, code=lang)
 
@@ -219,52 +218,90 @@ def download_dictionary(request, project, lang):
     words = Dictionary.objects.filter(
         project=prj,
         language=lang
-    ).order_by('source')
+    ).order_by(Lower('source'))
 
     # Translate toolkit based export
-    if export_format in ('po', 'tbx', 'xliff'):
-        return download_dictionary_ttkit(export_format, prj, lang, words)
+    exporter = get_exporter(export_format)(
+        prj, lang,
+        get_site_url(reverse(
+            'show_dictionary',
+            kwargs={'project': prj.slug, 'lang': lang.code}
+        )),
+        fieldnames=('source', 'target'),
+    )
 
-    # Manually create CSV file
-    response = HttpResponse(content_type='text/csv; charset=utf-8')
-    filename = 'dictionary-%s-%s.csv' % (prj.slug, lang.code)
-    response['Content-Disposition'] = 'attachment; filename=%s' % filename
-
-    writer = csv.writer(response)
-
-    # Add header
-    writer.writerow(('source', 'target'))
-
+    # Add words
     for word in words.iterator():
-        if six.PY2:
-            writer.writerow((
-                word.source.encode('utf8'), word.target.encode('utf8')
-            ))
-        else:
-            writer.writerow((
-                word.source, word.target
-            ))
+        exporter.add_dictionary(word)
 
-    return response
+    # Save to response
+    return exporter.get_response(
+        'glossary-{project}-{language}.{extension}'
+    )
 
 
-def show_dictionary(request, project, lang):
-    prj = get_project(request, project)
-    lang = get_object_or_404(Language, code=lang)
+def add_dictionary(request, unit_id):
+    unit = get_object_or_404(Unit, pk=int(unit_id))
+    check_access(request, unit.translation.subproject.project)
 
-    if (request.method == 'POST' and
-            request.user.has_perm('trans.add_dictionary')):
+    prj = unit.translation.subproject.project
+    lang = unit.translation.language
+
+    code = 403
+    results = ''
+    words = []
+
+    if request.method == 'POST' and can_add_dictionary(request.user, prj):
         form = WordForm(request.POST)
         if form.is_valid():
-            Dictionary.objects.create(
-                request,
+            word = Dictionary.objects.create(
+                request.user,
                 project=prj,
                 language=lang,
                 source=form.cleaned_data['source'],
                 target=form.cleaned_data['target']
             )
-        return HttpResponseRedirect(
-            request.POST.get('next', request.get_full_path())
+            words = form.cleaned_data['words']
+            words.append(word.id)
+            code = 200
+            results = render_to_string(
+                'glossary-embed.html',
+                {
+                    'glossary': (
+                        Dictionary.objects.get_words(unit) |
+                        Dictionary.objects.filter(project=prj, pk__in=words)
+                    ),
+                    'unit': unit,
+                    'user': request.user,
+                }
+            )
+
+    return JsonResponse(
+        data={
+            'responseCode': code,
+            'results': results,
+            'words': ','.join([str(x) for x in words])
+        }
+    )
+
+
+@never_cache
+def show_dictionary(request, project, lang):
+    prj = get_project(request, project)
+    lang = get_object_or_404(Language, code=lang)
+
+    if request.method == 'POST' and can_add_dictionary(request.user, prj):
+        form = WordForm(request.POST)
+        if form.is_valid():
+            Dictionary.objects.create(
+                request.user,
+                project=prj,
+                language=lang,
+                source=form.cleaned_data['source'],
+                target=form.cleaned_data['target']
+            )
+        return redirect_next(
+            request.POST.get('next'), request.get_full_path()
         )
     else:
         form = WordForm()
@@ -273,7 +310,7 @@ def show_dictionary(request, project, lang):
 
     words = Dictionary.objects.filter(
         project=prj, language=lang
-    ).order_by('source')
+    ).order_by(Lower('source'))
 
     limit = request.GET.get('limit', 25)
     page = request.GET.get('page', 1)
@@ -316,6 +353,8 @@ def show_dictionary(request, project, lang):
             'uploadform': uploadform,
             'letterform': letterform,
             'letter': letter,
+            'limit': limit,
+            'page': page,
             'last_changes': last_changes,
             'last_changes_url': urlencode({
                 'project': prj.slug,

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,18 +15,19 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from django.shortcuts import render, redirect
-from django.utils.translation import ugettext as _
 from django.http import Http404
-
-from six.moves.urllib.parse import urlencode
+from django.utils.translation import ugettext as _
+from django.utils.http import urlencode
 
 from weblate.lang.models import Language
-from weblate.trans.models import Project, Dictionary, Change
-from weblate.trans.util import sort_objects
+from weblate.trans.forms import SiteSearchForm
+from weblate.trans.models import Project, Change
+from weblate.trans.stats import get_per_language_stats
+from weblate.trans.util import sort_objects, translation_percent
 from weblate.trans.views.helper import get_project
 
 
@@ -35,6 +36,7 @@ def show_languages(request):
         request,
         'languages.html',
         {
+            'allow_index': True,
             'languages': sort_objects(
                 Language.objects.have_translation()
             ),
@@ -55,24 +57,31 @@ def show_language(request, lang):
     last_changes = Change.objects.last_changes(request.user).filter(
         translation__language=obj
     )[:10]
-    dicts = Dictionary.objects.filter(
-        language=obj
-    ).values_list('project', flat=True).distinct()
     projects = Project.objects.all_acl(request.user)
+    dicts = projects.filter(
+        dictionary__language=obj
+    ).distinct()
     projects = projects.filter(
         subproject__translation__language=obj
     ).distinct()
+
+    for project in projects:
+        stats = get_per_language_stats(project, obj)
+        project.language_stats = (
+            translation_percent(stats[0][1], stats[0][2]),
+            translation_percent(stats[0][3], stats[0][4])
+        )
 
     return render(
         request,
         'language.html',
         {
+            'allow_index': True,
             'object': obj,
             'last_changes': last_changes,
             'last_changes_url': urlencode({'lang': obj.code}),
-            'dicts': projects.filter(id__in=dicts),
+            'dicts': dicts,
             'projects': projects,
-            'link_language': True,
         }
     )
 
@@ -102,6 +111,7 @@ def show_project(request, lang, project):
         request,
         'language-project.html',
         {
+            'allow_index': True,
             'language': obj,
             'project': pobj,
             'last_changes': last_changes,
@@ -111,5 +121,6 @@ def show_project(request, lang, project):
             'translations': translations,
             'title': '{0} - {1}'.format(pobj, obj),
             'show_only_component': True,
+            'search_form': SiteSearchForm(),
         }
     )

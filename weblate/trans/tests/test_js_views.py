@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,32 +15,28 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""
-Tests for AJAX/JS views.
-"""
+"""Test for AJAX/JS views."""
 
 from __future__ import unicode_literals
 
 import json
 
 from django.core.urlresolvers import reverse
+from django.test.utils import override_settings
 
-from weblate.trans.tests.test_views import ViewTestCase
-from weblate.trans.tests import OverrideSettings
+from weblate.trans.tests.test_views import FixtureTestCase
 from weblate.utils.classloader import load_class
 from weblate.trans.machine import MACHINE_TRANSLATION_SERVICES
 
 
-class JSViewsTest(ViewTestCase):
-    '''
-    Testing of AJAX/JS views.
-    '''
+class JSViewsTest(FixtureTestCase):
+    """Testing of AJAX/JS views."""
     @staticmethod
     def ensure_dummy_mt():
-        """Ensures we have dummy mt installed"""
+        """Ensure we have dummy mt installed"""
         if 'dummy' in MACHINE_TRANSLATION_SERVICES:
             return
         name = 'weblate.trans.machine.dummy.DummyTranslation'
@@ -58,7 +54,7 @@ class JSViewsTest(ViewTestCase):
         )
         self.assertContains(response, 'Czech')
 
-    @OverrideSettings(MACHINE_TRANSLATION_ENABLED=True)
+    @override_settings(MACHINE_TRANSLATION_ENABLED=True)
     def test_translate(self):
         self.ensure_dummy_mt()
         unit = self.get_unit()
@@ -100,7 +96,14 @@ class JSViewsTest(ViewTestCase):
         )
         self.assertContains(response, 'href="/changes/?')
 
-    @OverrideSettings(MACHINE_TRANSLATION_ENABLED=True)
+    def test_get_unit_translations(self):
+        unit = self.get_unit()
+        response = self.client.get(
+            reverse('js-unit-translations', kwargs={'unit_id': unit.id}),
+        )
+        self.assertContains(response, 'href="/translate/')
+
+    @override_settings(MACHINE_TRANSLATION_ENABLED=True)
     def test_mt_services(self):
         self.ensure_dummy_mt()
         response = self.client.get(reverse('js-mt-services'))

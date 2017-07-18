@@ -27,4 +27,7 @@ Disallow: /new-lang/
 Disallow: /add-user/
 Disallow: /delete-user/
 Disallow: /avatar/
+Disallow: /access/
+Disallow: /user/
+Disallow: /contact/
 Sitemap: sitemap.xml

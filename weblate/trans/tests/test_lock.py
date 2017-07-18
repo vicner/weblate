@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,20 +15,18 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""
-Tests for locking.
-"""
+"""Test for locking."""
 
 from django.core.urlresolvers import reverse
 
-from weblate.trans.tests.test_views import ViewTestCase
+from weblate.trans.tests.test_views import FixtureTestCase
 from weblate.trans.models.subproject import SubProject
 
 
-class LockTest(ViewTestCase):
+class LockTest(FixtureTestCase):
     def setUp(self):
         super(LockTest, self).setUp()
 
@@ -36,7 +34,7 @@ class LockTest(ViewTestCase):
         self.user.is_superuser = True
         self.user.save()
 
-    def assertComponentLocked(self):
+    def assert_component_locked(self):
         subproject = SubProject.objects.get(
             slug=self.subproject.slug,
             project__slug=self.project.slug,
@@ -50,7 +48,7 @@ class LockTest(ViewTestCase):
             'This translation is currently locked for updates!'
         )
 
-    def assertComponentNotLocked(self):
+    def assert_component_not_locked(self):
         subproject = SubProject.objects.get(
             slug=self.subproject.slug,
             project__slug=self.project.slug,
@@ -65,33 +63,33 @@ class LockTest(ViewTestCase):
         )
 
     def test_subproject(self):
-        response = self.client.get(
+        response = self.client.post(
             reverse('lock_subproject', kwargs=self.kw_subproject)
         )
         self.assertRedirects(
             response,
             reverse('subproject', kwargs=self.kw_subproject)
         )
-        self.assertComponentLocked()
+        self.assert_component_locked()
 
-        response = self.client.get(
+        response = self.client.post(
             reverse('unlock_subproject', kwargs=self.kw_subproject)
         )
         self.assertRedirects(
             response,
             reverse('subproject', kwargs=self.kw_subproject)
         )
-        self.assertComponentNotLocked()
+        self.assert_component_not_locked()
 
     def test_project(self):
-        response = self.client.get(
+        response = self.client.post(
             reverse('lock_project', kwargs=self.kw_project)
         )
         self.assertRedirects(
             response,
             reverse('project', kwargs=self.kw_project)
         )
-        self.assertComponentLocked()
+        self.assert_component_locked()
 
         response = self.client.get(
             reverse('subproject', kwargs=self.kw_subproject)
@@ -101,17 +99,17 @@ class LockTest(ViewTestCase):
             'This translation is currently locked for updates!'
         )
 
-        response = self.client.get(
+        response = self.client.post(
             reverse('unlock_project', kwargs=self.kw_project)
         )
         self.assertRedirects(
             response,
             reverse('project', kwargs=self.kw_project)
         )
-        self.assertComponentNotLocked()
+        self.assert_component_not_locked()
 
     def test_translation(self):
-        response = self.client.get(
+        response = self.client.post(
             reverse('lock_translation', kwargs=self.kw_translation)
         )
         self.assertRedirects(
@@ -120,7 +118,7 @@ class LockTest(ViewTestCase):
         )
         self.assertTrue(self.get_translation().is_user_locked())
 
-        response = self.client.get(
+        response = self.client.post(
             reverse('unlock_translation', kwargs=self.kw_translation)
         )
         self.assertRedirects(
@@ -129,7 +127,7 @@ class LockTest(ViewTestCase):
         )
         self.assertFalse(self.get_translation().is_user_locked())
 
-        response = self.client.get(
+        response = self.client.post(
             reverse('js-lock', kwargs=self.kw_translation)
         )
         self.assertFalse(self.get_translation().is_user_locked())

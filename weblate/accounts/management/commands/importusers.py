@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
@@ -43,10 +43,9 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        '''
-        Creates default set of groups and optionally updates them and moves
+        """Create default set of groups and optionally updates them and moves
         users around to default group.
-        '''
+        """
 
         data = json.load(options['json-file'])
 
@@ -59,19 +58,19 @@ class Command(BaseCommand):
 
             if not line['email'] or not line['username']:
                 self.stderr.write(
-                    'Skipping {}, has blank username or email'.format(line)
+                    'Skipping {0}, has blank username or email'.format(line)
                 )
                 continue
 
             if User.objects.filter(username=line['username']).exists():
                 self.stderr.write(
-                    'Skipping {}, username exists'.format(line['username'])
+                    'Skipping {0}, username exists'.format(line['username'])
                 )
                 continue
 
             if User.objects.filter(email=line['email']).exists():
                 self.stderr.write(
-                    'Skipping {}, email exists'.format(line['email'])
+                    'Skipping {0}, email exists'.format(line['email'])
                 )
                 continue
 

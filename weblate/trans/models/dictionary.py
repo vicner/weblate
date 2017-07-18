@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,20 +15,23 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
 
+import functools
+import re
 import sys
 
 from django.core.urlresolvers import reverse
 from django.db import models
 from django.db.models import Q
-from django.utils.encoding import force_text, python_2_unicode_compatible
+from django.utils.encoding import python_2_unicode_compatible
 
 from whoosh.analysis import (
-    LanguageAnalyzer, StandardAnalyzer, StemmingAnalyzer, NgramAnalyzer
+    LanguageAnalyzer, StandardAnalyzer, StemmingAnalyzer, NgramAnalyzer,
+    SimpleAnalyzer,
 )
 from whoosh.lang import has_stemmer
 
@@ -38,13 +41,14 @@ from weblate.trans.models.project import Project
 from weblate.utils.errors import report_error
 
 
+SPLIT_RE = re.compile(r'[\s,.:!?]+', re.UNICODE)
+
+
 class DictionaryManager(models.Manager):
     # pylint: disable=W0232
 
     def upload(self, request, project, language, fileobj, method):
-        '''
-        Handles dictionary upload.
-        '''
+        """Handle dictionary upload."""
         from weblate.trans.models.change import Change
         store = AutoFormat.parse(fileobj)
 
@@ -60,14 +64,22 @@ class DictionaryManager(models.Manager):
                 continue
 
             # Get object
-            word, created = self.get_or_create(
-                project=project,
-                language=language,
-                source=source,
-                defaults={
-                    'target': target,
-                },
-            )
+            try:
+                word, created = self.get_or_create(
+                    project=project,
+                    language=language,
+                    source=source,
+                    defaults={
+                        'target': target,
+                    },
+                )
+            except self.MultipleObjectsReturned:
+                word = self.filter(
+                    project=project,
+                    language=language,
+                    source=source
+                )[0]
+                created = False
 
             # Already existing entry found
             if not created:
@@ -77,7 +89,7 @@ class DictionaryManager(models.Manager):
                 if method == 'add':
                     # Add word
                     word = self.create(
-                        request,
+                        user=request.user,
                         action=Change.ACTION_DICTIONARY_UPLOAD,
                         project=project,
                         language=language,
@@ -93,53 +105,62 @@ class DictionaryManager(models.Manager):
 
         return ret
 
-    def create(self, request, **kwargs):
-        '''
-        Creates new dictionary object.
-        '''
+    def create(self, user, **kwargs):
+        """Create new dictionary object."""
         from weblate.trans.models.change import Change
         action = kwargs.pop('action', Change.ACTION_DICTIONARY_NEW)
         created = super(DictionaryManager, self).create(**kwargs)
         Change.objects.create(
             action=action,
             dictionary=created,
-            user=request.user,
+            user=user,
             target=created.target,
         )
         return created
 
     def get_words(self, unit):
-        """
-        Returns list of word pairs for an unit.
-        """
+        """Return list of word pairs for an unit."""
         words = set()
 
         # Prepare analyzers
         # - standard analyzer simply splits words
         # - stemming extracts stems, to catch things like plurals
         analyzers = [
-            StandardAnalyzer(),
-            StemmingAnalyzer(),
+            (SimpleAnalyzer(), True),
+            (SimpleAnalyzer(expression=SPLIT_RE, gaps=True), True),
+            (StandardAnalyzer(), False),
+            (StemmingAnalyzer(), False),
         ]
         source_language = unit.translation.subproject.project.source_language
         lang_code = source_language.base_code()
         # Add per language analyzer if Whoosh has it
         if has_stemmer(lang_code):
-            analyzers.append(LanguageAnalyzer(lang_code))
+            analyzers.append((LanguageAnalyzer(lang_code), False))
         # Add ngram analyzer for languages like Chinese or Japanese
         if source_language.uses_ngram():
-            analyzers.append(NgramAnalyzer(4))
+            analyzers.append((NgramAnalyzer(4), False))
 
         # Extract words from all plurals and from context
         for text in unit.get_source_plurals() + [unit.context]:
-            for analyzer in analyzers:
+            for analyzer, combine in analyzers:
                 # Some Whoosh analyzers break on unicode
+                new_words = []
                 try:
-                    words.update(
-                        [token.text for token in analyzer(force_text(text))]
-                    )
+                    new_words = [token.text for token in analyzer(text)]
                 except (UnicodeDecodeError, IndexError) as error:
                     report_error(error, sys.exc_info())
+                words.update(new_words)
+                # Add combined string to allow match against multiple word
+                # entries allowing to combine up to 5 words
+                if combine:
+                    words.update(
+                        [
+                            ' '.join(new_words[x:y])
+                            for x in range(len(new_words))
+                            for y in range(1, min(x + 6, len(new_words) + 1))
+                            if x != y
+                        ]
+                    )
 
         # Grab all words in the dictionary
         dictionary = self.filter(
@@ -153,12 +174,12 @@ class DictionaryManager(models.Manager):
         else:
             # Build the query for fetching the words
             # Can not use __in as we want case insensitive lookup
-            query = Q()
-            for word in words:
-                query |= Q(source__iexact=word)
-
-            # Filter dictionary
-            dictionary = dictionary.filter(query)
+            dictionary = dictionary.filter(
+                functools.reduce(
+                    lambda x, y: x | y,
+                    [Q(source__iexact=word) for word in words]
+                )
+            )
 
         return dictionary
 
@@ -180,23 +201,23 @@ class Dictionary(models.Model):
         app_label = 'trans'
 
     def __str__(self):
-        return '%s/%s: %s -> %s' % (
+        return '{0}/{1}: {2} -> {3}'.format(
             self.project,
             self.language,
             self.source,
             self.target
         )
 
+    @models.permalink
     def get_absolute_url(self):
-        return '%s?id=%d' % (
-            reverse(
-                'edit_dictionary',
-                kwargs={
-                    'project': self.project.slug,
-                    'lang': self.language.code
-                }
-            ),
-            self.pk
+        return (
+            'edit_dictionary',
+            (),
+            {
+                'project': self.project.slug,
+                'lang': self.language.code,
+                'pk': self.id,
+            }
         )
 
     def get_parent_url(self):
@@ -206,9 +227,7 @@ class Dictionary(models.Model):
         )
 
     def edit(self, request, source, target):
-        '''
-        Edits word in a dictionary.
-        '''
+        """Edit word in a dictionary."""
         from weblate.trans.models.change import Change
         self.source = source
         self.target = target

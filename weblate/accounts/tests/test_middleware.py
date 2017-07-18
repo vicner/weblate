@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 """
@@ -46,7 +46,7 @@ class MiddlewareTest(TestCase):
         middleware = RequireLoginMiddleware()
         request = HttpRequest()
         request.user = User()
-        request.META['SERVER_NAME'] = 'server'
+        request.META['SERVER_NAME'] = 'testserver'
         request.META['SERVER_PORT'] = '80'
         # No protection for not protected path
         self.assertIsNone(

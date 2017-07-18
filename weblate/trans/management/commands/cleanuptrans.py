@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,33 +15,68 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 import os.path
+import time
 
 from django.core.files.storage import DefaultStorage
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from social_django.models import Partial
+
+from whoosh.index import EmptyIndexError
+
 from weblate.trans.models import (
-    Suggestion, Comment, Check, Unit, Project, Source
+    Suggestion, Comment, Check, Unit, Project, Source, SubProject
 )
 from weblate.lang.models import Language
+from weblate.screenshots.models import Screenshot
+from weblate.trans.search import get_target_index, clean_search_unit
 
 
 class Command(BaseCommand):
     help = 'clenups orphaned checks and suggestions'
 
     def handle(self, *args, **options):
-        '''
-        Perfoms cleanup of Weblate database.
-        '''
+        """Perfom cleanup of Weblate database."""
+        self.cleanup_sources()
         self.cleanup_database()
+        self.cleanup_fulltext()
         self.cleanup_files()
+        self.cleanup_social()
+
+    def cleanup_social(self):
+        """Cleanup expired partial social authentications."""
+        with transaction.atomic():
+            for partial in Partial.objects.all():
+                kwargs = partial.data['kwargs']
+                if 'weblate_expires' not in kwargs:
+                    # Old entry without expiry set
+                    partial.delete()
+                elif kwargs['weblate_expires'] < time.time():
+                    # Expired entry
+                    partial.delete()
+
+    def cleanup_sources(self):
+        with transaction.atomic():
+            components = list(SubProject.objects.values_list('id', flat=True))
+        for pk in components:
+            with transaction.atomic():
+                component = SubProject.objects.get(pk=pk)
+                source_ids = Unit.objects.filter(
+                    translation__subproject=component
+                ).values('id_hash').distinct()
+                Source.objects.filter(
+                    subproject=component
+                ).exclude(
+                    id_hash__in=source_ids
+                ).delete()
 
     def cleanup_files(self):
-        """Removes stale screenshots"""
+        """Remove stale screenshots"""
         storage = DefaultStorage()
         try:
             files = storage.listdir('screenshots')[1]
@@ -49,25 +84,46 @@ class Command(BaseCommand):
             return
         for name in files:
             fullname = os.path.join('screenshots', name)
-            if not Source.objects.filter(screenshot=fullname).exists():
+            if not Screenshot.objects.filter(image=fullname).exists():
                 storage.delete(fullname)
 
-    def cleanup_database(self):
-        """Cleanups the database"""
-        for prj in Project.objects.all():
-            with transaction.atomic():
+    def cleanup_fulltext(self):
+        """Remove stale units from fulltext"""
+        with transaction.atomic():
+            languages = list(Language.objects.have_translation().values_list(
+                'code', flat=True
+            ))
+        # We operate only on target indexes as they will have all IDs anyway
+        for lang in languages:
+            index = get_target_index(lang)
+            try:
+                fields = index.reader().all_stored_fields()
+            except EmptyIndexError:
+                continue
+            for item in fields:
+                if Unit.objects.filter(pk=item['pk']).exists():
+                    continue
+                clean_search_unit(item['pk'], lang)
 
-                # List all current unit contentsums
+    def cleanup_database(self):
+        """Cleanup the database"""
+        with transaction.atomic():
+            projects = list(Project.objects.values_list('id', flat=True))
+        for pk in projects:
+            with transaction.atomic():
+                prj = Project.objects.get(pk=pk)
+
+                # List all current unit content_hashs
                 units = Unit.objects.filter(
                     translation__subproject__project=prj
-                ).values('contentsum').distinct()
+                ).values('content_hash').distinct()
 
                 # Remove source comments referring to deleted units
                 Comment.objects.filter(
                     language=None,
                     project=prj
                 ).exclude(
-                    contentsum__in=units
+                    content_hash__in=units
                 ).delete()
 
                 # Remove source checks referring to deleted units
@@ -75,7 +131,7 @@ class Command(BaseCommand):
                     language=None,
                     project=prj
                 ).exclude(
-                    contentsum__in=units
+                    content_hash__in=units
                 ).delete()
 
                 for lang in Language.objects.all():
@@ -86,25 +142,25 @@ class Command(BaseCommand):
                         translation__language=lang,
                         translated=True,
                         translation__subproject__project=prj
-                    ).values('contentsum').distinct()
+                    ).values('content_hash').distinct()
                     Check.objects.filter(
                         language=lang, project=prj
                     ).exclude(
-                        contentsum__in=translatedunits
+                        content_hash__in=translatedunits
                     ).delete()
 
-                    # List current unit contentsums
+                    # List current unit content_hashs
                     units = Unit.objects.filter(
                         translation__language=lang,
                         translation__subproject__project=prj
-                    ).values('contentsum').distinct()
+                    ).values('content_hash').distinct()
 
                     # Remove suggestions referring to deleted units
                     Suggestion.objects.filter(
                         language=lang,
                         project=prj
                     ).exclude(
-                        contentsum__in=units
+                        content_hash__in=units
                     ).delete()
 
                     # Remove translation comments referring to deleted units
@@ -112,7 +168,7 @@ class Command(BaseCommand):
                         language=lang,
                         project=prj
                     ).exclude(
-                        contentsum__in=units
+                        content_hash__in=units
                     ).delete()
 
                     # Process suggestions
@@ -123,7 +179,7 @@ class Command(BaseCommand):
                     for sug in all_suggestions.iterator():
                         # Remove suggestions with same text as real translation
                         units = Unit.objects.filter(
-                            contentsum=sug.contentsum,
+                            content_hash=sug.content_hash,
                             translation__language=lang,
                             translation__subproject__project=prj,
                             target=sug.target
@@ -135,7 +191,7 @@ class Command(BaseCommand):
 
                         # Remove duplicate suggestions
                         sugs = Suggestion.objects.filter(
-                            contentsum=sug.contentsum,
+                            content_hash=sug.content_hash,
                             language=lang,
                             project=prj,
                             target=sug.target

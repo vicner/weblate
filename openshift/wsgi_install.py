@@ -16,15 +16,19 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 import os
 from string import Template
 
-exec(open(os.path.join(
-    os.environ['OPENSHIFT_REPO_DIR'], 'openshift', 'virtualenv.py'
-)).read())
+VIRTUALENV = os.path.join(
+    os.environ['OPENSHIFT_PYTHON_DIR'], 'virtenv', 'bin', 'activate_this.py'
+)
+
+with open(VIRTUALENV) as handle:
+    code = compile(handle.read(), 'activate_this.py', 'exec')
+    exec(code, dict(__file__=VIRTUALENV))  # noqa
 
 
 def application(environ, start_response):

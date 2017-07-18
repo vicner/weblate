@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 """
@@ -26,6 +26,7 @@ from __future__ import unicode_literals
 from weblate.trans.tests.test_checks import CheckTestCase
 from weblate.trans.checks.format import (
     PythonFormatCheck, PHPFormatCheck, CFormatCheck, PythonBraceFormatCheck,
+    PerlFormatCheck,
 )
 
 
@@ -223,11 +224,12 @@ class PHPFormatCheckTest(CheckTestCase):
 
 class CFormatCheckTest(CheckTestCase):
     check = CFormatCheck()
+    flag = 'c-format'
 
     def setUp(self):
         super(CFormatCheckTest, self).setUp()
         self.test_highlight = (
-            'c-format',
+            self.flag,
             '%sstring%d',
             [(0, 2, u'%s'), (8, 10, u'%d')],
         )
@@ -301,6 +303,11 @@ class CFormatCheckTest(CheckTestCase):
             'radky: %\'6.3f',
             False
         ))
+
+
+class PerlFormatCheckTest(CFormatCheckTest):
+    check = PerlFormatCheck()
+    flag = 'perl-format'
 
 
 class PythonBraceFormatCheckTest(CheckTestCase):

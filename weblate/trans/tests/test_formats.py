@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,11 +15,9 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-'''
-File format specific behavior.
-'''
+"""File format specific behavior."""
 from __future__ import unicode_literals
 
 from io import BytesIO
@@ -35,8 +33,8 @@ from translate.storage.po import pofile
 
 from weblate.lang.models import Language
 from weblate.trans.formats import (
-    AutoFormat, PoFormat, AndroidFormat, PropertiesFormat,
-    JSONFormat, RESXFormat, PhpFormat, XliffFormat, TSFormat,
+    AutoFormat, PoFormat, AndroidFormat, PropertiesFormat, JoomlaFormat,
+    JSONFormat, JSONNestedFormat, RESXFormat, PhpFormat, XliffFormat, TSFormat,
     YAMLFormat, RubyYAMLFormat, FILE_FORMATS, detect_filename,
 )
 from weblate.trans.tests.utils import get_test_file
@@ -44,7 +42,9 @@ from weblate.trans.tests.utils import get_test_file
 
 TEST_PO = get_test_file('cs.po')
 TEST_JSON = get_test_file('cs.json')
+TEST_NESTED_JSON = get_test_file('cs-nested.json')
 TEST_PHP = get_test_file('cs.php')
+TEST_JOOMLA = get_test_file('cs.ini')
 TEST_PROPERTIES = get_test_file('swing.properties')
 TEST_ANDROID = get_test_file('strings.xml')
 TEST_XLIFF = get_test_file('cs.xliff')
@@ -81,6 +81,10 @@ class AutoLoadTest(TestCase):
 
     def test_properties(self):
         self.single_test(TEST_PROPERTIES, PropertiesFormat)
+
+    def test_joomla(self):
+        if 'joomla' in FILE_FORMATS:
+            self.single_test(TEST_JOOMLA, JoomlaFormat)
 
     def test_android(self):
         self.single_test(TEST_ANDROID, AndroidFormat)
@@ -124,8 +128,14 @@ class AutoFormatTest(SimpleTestCase):
     FIND = 'Hello, world!\n'
     FIND_MATCH = 'Ahoj světe!\n'
 
-    # Show full diff on error
-    maxDiff = None
+    def setUp(self):
+        super(AutoFormatTest, self).setUp()
+        if self.FORMAT.format_id not in FILE_FORMATS:
+            raise SkipTest(
+                'File format {0} is not supported!'.format(
+                    self.FORMAT.format_id
+                )
+            )
 
     def test_parse(self):
         storage = self.FORMAT(self.FILE)
@@ -247,6 +257,19 @@ class PropertiesFormatTest(AutoFormatTest):
         )
 
 
+class JoomlaFormatTest(AutoFormatTest):
+    FORMAT = JoomlaFormat
+    FILE = TEST_JOOMLA
+    MIME = 'text/plain'
+    COUNT = 4
+    EXT = 'ini'
+    MASK = 'joomla/*.ini'
+    EXPECTED_PATH = 'joomla/cs_CZ.ini'
+    MATCH = '\n'
+    FIND = 'HELLO'
+    FIND_MATCH = 'Ahoj "světe"!\n'
+
+
 class JSONFormatTest(AutoFormatTest):
     FORMAT = JSONFormat
     FILE = TEST_JSON
@@ -260,6 +283,15 @@ class JSONFormatTest(AutoFormatTest):
 
     def assert_same(self, newdata, testdata):
         self.assertJSONEqual(newdata, testdata)
+
+
+class JSONNestedFormatTest(JSONFormatTest):
+    FORMAT = JSONNestedFormat
+    FILE = TEST_NESTED_JSON
+    COUNT = 4
+    MASK = 'json-nested/*.json'
+    EXPECTED_PATH = 'json-nested/cs_CZ.json'
+    FIND = 'weblate.hello'
 
 
 class PhpFormatTest(AutoFormatTest):
@@ -309,12 +341,7 @@ class RESXFormatTest(XMLMixin, AutoFormatTest):
     EXPECTED_PATH = 'resx/cs_CZ.resx'
     FIND = 'Hello'
     FIND_MATCH = ''
-    MATCH = '<root></root>'
-
-    def setUp(self):
-        super(RESXFormatTest, self).setUp()
-        if 'resx' not in FILE_FORMATS:
-            raise SkipTest('resx not supported!')
+    MATCH = 'text/microsoft-resx'
 
 
 class YAMLFormatTest(AutoFormatTest):
@@ -329,11 +356,6 @@ class YAMLFormatTest(AutoFormatTest):
     FIND = 'weblate / hello'
     FIND_MATCH = ''
     MATCH = 'weblate:'
-
-    def setUp(self):
-        super(YAMLFormatTest, self).setUp()
-        if 'yaml' not in FILE_FORMATS:
-            raise SkipTest('yaml not supported!')
 
     def assert_same(self, newdata, testdata):
         # Fixup quotes as different translate toolkit versions behave

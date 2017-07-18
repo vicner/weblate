@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,12 +15,13 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-'''
-Import all the autofixes defined in settings.  Note, unlike checks, using
-a sortable data object so fixes are applied in desired order.
-'''
+"""Import all the autofixes defined in settings.
+
+Note, unlike checks, using a sortable data object so fixes are applied in
+desired order.
+"""
 
 from weblate.utils.classloader import ClassLoader
 
@@ -28,9 +29,7 @@ AUTOFIXES = ClassLoader('AUTOFIX_LIST')
 
 
 def fix_target(target, unit):
-    '''
-    Apply each autofix to the target translation.
-    '''
+    """Apply each autofix to the target translation."""
     if target == []:
         return target, []
     fixups = []

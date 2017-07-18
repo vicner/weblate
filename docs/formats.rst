@@ -138,6 +138,10 @@ XLIFF is usually used as bilingual, but Weblate supports it as monolingual as we
     see :ref:`component`, what will make Weblate ignore this and all strings
     will appear as approved.
 
+    Similarly on importing such files, you should choose
+    :guilabel:`Import as translated` under
+    :guilabel:`Processing of strings needing review`.
+
 .. seealso::
 
     `XLIFF on Wikipedia <https://en.wikipedia.org/wiki/XLIFF>`_,
@@ -164,6 +168,31 @@ Weblate supports ISO-8859-1, UTF-8 and UTF-16 variants of this format.
 
     `Java properties on Wikipedia <https://en.wikipedia.org/wiki/.properties>`_,
     `Java properties in translate-toolkit documentation <http://docs.translatehouse.org/projects/translate-toolkit/en/latest/formats/properties.html>`_
+
+Joomla translations
+-------------------
+
+.. index::
+    pair: Joomla translations; file format
+
+.. versionadded:: 2.12
+
+Native Joomla format for translations.
+
+Joomla translation are usually used as monolingual.
+
+This format supports creating new languages. When a new languages is created, a
+new empty file will be added to the repository. Only keys that are defined will
+be written to the newly created file. This should work fine since Joomla 3.0.
+
+.. note::
+
+    You need translate-toolkit 2.1.0 or newer for Joomla support.
+
+.. seealso::
+
+    `Specification of Joomla language files <https://docs.joomla.org/Specification_of_language_files>`_,
+    `Properties in translate-toolkit documentation <http://docs.translatehouse.org/projects/translate-toolkit/en/latest/formats/properties.html>`_
 
 Qt Linguist .ts
 ---------------
@@ -284,13 +313,18 @@ Example file:
 
     `PHP files in translate-toolkit documentation <http://docs.translatehouse.org/projects/translate-toolkit/en/latest/formats/php.html>`_
 
-JSON files
-----------
+JSON and nested structure JSON files
+------------------------------------
 
 .. index::
     pair: JSON; file format
 
 .. versionadded:: 2.0
+
+.. versionchanged:: 2.16
+
+    Since Weblate 2.16 and wiht translate-toolkit at least 2.2.4 nested
+    structure JSON files are supported as well.
 
 JSON is format used mostly for translating applications implemented in
 Javascript.
@@ -298,20 +332,15 @@ Javascript.
 JSON translations are usually monolingual, so it is recommended to specify base
 file with English strings.
 
-.. note::
-
-    Weblate currently supports only simple JSON files with key value mappings,
-    more complex formats like the ones used by Chrome extensions are currently
-    not supported by translate-toolkit and will produce invalid results.
-
-    If you are using nested dictionaries structure in your translations, you
-    can workardound above limitation by using
-    :file:`examples/hook-json_restore_hierarchy` as
-    :setting:`PRE_COMMIT_SCRIPTS`.
-
 Example file:
 
 .. literalinclude:: ../weblate/trans/tests/data/cs.json
+    :language: json
+    :encoding: utf-8
+
+Nested files are supported as well (see above for requirements), such file can look as:
+
+.. literalinclude:: ../weblate/trans/tests/data/cs-nested.json
     :language: json
     :encoding: utf-8
 

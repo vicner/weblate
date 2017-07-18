@@ -821,6 +821,8 @@ Translations
     :type component: string
     :param language: Translation language code
     :type language: string
+    :form boolean overwrite: Whether to overwrite existing translations (defaults to no)
+    :form file file: Uploaded file
 
     .. seealso::
 
@@ -912,18 +914,20 @@ Units
 
         Additional common headers, parameters and status codes are documented at :ref:`api-generic`.
 
-        Translation object attributes are documented at :http:get:`/api/units/(int:pk)/`.
+        Unit object attributes are documented at :http:get:`/api/units/(int:pk)/`.
 
 .. http:get:: /api/units/(int:pk)/
 
     Returns information about translation unit.
 
+    :param pk: Unit ID
+    :type pk: int
     :>json string translation: URL of a related translation object
     :>json string source: source string
     :>json string previous_source: previous source string used for fuzzy matching
     :>json string target: target string
-    :>json string checksum: unique identifier of the unit
-    :>json string contentsum: unique identifier of the source string
+    :>json string id_hash: unique identifier of the unit
+    :>json string content_hash: unique identifier of the source string
     :>json string location: location of the unit in source code
     :>json string context: translation unit context
     :>json string comment: translation unit comment
@@ -938,6 +942,7 @@ Units
     :>json int priority: translation priority, 100 is default
     :>json int id: unit identifier
     :>json string web_url: URL where unit can be edited
+    :>json string souce_info: Source string information link, see :http:get:`/api/sources/(int:pk)/`
 
 Changes
 +++++++
@@ -952,13 +957,14 @@ Changes
 
         Additional common headers, parameters and status codes are documented at :ref:`api-generic`.
 
-        Translation object attributes are documented at :http:get:`/api/changes/(int:pk)/`.
+        Change object attributes are documented at :http:get:`/api/changes/(int:pk)/`.
 
 .. http:get:: /api/changes/(int:pk)/
 
     Returns information about translation change.
 
-
+    :param pk: Change ID
+    :type pk: int
     :>json string unit: URL of a related unit object
     :>json string translation: URL of a related translation object
     :>json string component: URL of a related component object
@@ -970,6 +976,90 @@ Changes
     :>json string action_name: text description of action
     :>json string target: event changed text or detail
     :>json int id: change identifier
+
+Sources
++++++++
+
+.. versionadded:: 2.14
+
+.. http:get:: /api/sources/
+
+    Returns list of source string information.
+
+    .. seealso::
+
+        Additional common headers, parameters and status codes are documented at :ref:`api-generic`.
+
+        Sources object attributes are documented at :http:get:`/api/sources/(int:pk)/`.
+
+.. http:get:: /api/sources/(int:pk)/
+
+    Returns information about source information.
+
+    :param pk: Source information ID
+    :type pk: int
+    :>json string id_hash: unique identifier of the unit
+    :>json string component: URL of a related component object
+    :>json timestamp timestamp: timestamp when source string was first seen by Weblate
+    :>json int priority: source string priority, 100 is default
+    :>json string check_flags: source string flags
+    :>json array units: links to units, see :http:get:`/api/units/(int:pk)/`
+    :>json array screenshots: links to assigned screenshots, see :http:get:`/api/screenshots/(int:pk)/`
+
+Screenshots
++++++++++++
+
+.. versionadded:: 2.14
+
+.. http:get:: /api/screenshots/
+
+    Returns list of screenshot string informations.
+
+    .. seealso::
+
+        Additional common headers, parameters and status codes are documented at :ref:`api-generic`.
+
+        Sources object attributes are documented at :http:get:`/api/screenshots/(int:pk)/`.
+
+.. http:get:: /api/screenshots/(int:pk)/
+
+    Returns information about screenshot information.
+
+    :param pk: Screenshot ID
+    :type pk: int
+    :>json string name: name of a screenshot
+    :>json string component: URL of a related component object
+    :>json string file_url: URL to download a file, see :http:get:`/api/screenshots/(int:pk)/file/`
+    :>json array sources: link to asssociated source string information, see :http:get:`/api/sources/(int:pk)/`
+
+.. http:get:: /api/screenshots/(int:pk)/file/
+
+    Download the screenshots image.
+
+    :param pk: Screenshot ID
+    :type pk: int
+
+.. http:post:: /api/screenshots/(int:pk)/file/
+
+    Replace screenshot image.
+
+    :param pk: Screenshot ID
+    :type pk: int
+    :form file image: Uploaded file
+
+    .. seealso::
+
+        Additional common headers, parameters and status codes are documented at :ref:`api-generic`.
+
+    **CURL example:**
+
+    .. code-block:: sh
+
+        curl -X POST \
+            -F image=@image.png \
+            -H "Authorization: Token TOKEN" \
+            http://example.com/api/screenshots/1/file/
+
 
 .. _hooks:
 
@@ -1032,7 +1122,7 @@ update individual repositories, see
 
         :ref:`gitlab-setup`
             For instruction on setting up GitLab integration
-        http://docs.gitlab.com/ce/web_hooks/web_hooks.html
+        https://docs.gitlab.com/ce/user/project/integrations/webhooks.html
             Generic information about GitLab Webhooks
         :setting:`ENABLE_HOOKS`
             For enabling hooks for whole Weblate

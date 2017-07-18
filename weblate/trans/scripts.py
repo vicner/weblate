@@ -1,7 +1,7 @@
 
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -16,7 +16,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 """Hook scripts handling"""
 
@@ -38,34 +38,26 @@ def run_post_update_script(component, previous_head):
 
 
 def run_pre_commit_script(component, translation, filename):
-    """
-    Pre commit hook
-    """
+    """Pre commit hook"""
     run_hook(
         component, translation, component.pre_commit_script, None, filename
     )
 
 
 def run_post_commit_script(component, translation, filename):
-    """
-    Post commit hook
-    """
+    """Post commit hook"""
     run_hook(
         component, translation, component.post_commit_script, None, filename
     )
 
 
 def run_post_add_script(component, translation, filename):
-    """
-    Post add hook
-    """
+    """Post add hook"""
     run_hook(component, translation, component.post_add_script, None, filename)
 
 
 def run_hook(component, translation, script, env=None, *args):
-    """
-    Generic script hook executor.
-    """
+    """Generic script hook executor."""
     if script:
         command = [script]
         if args:
@@ -80,7 +72,9 @@ def run_hook(component, translation, script, env=None, *args):
             'WL_PATH': target.get_path(),
             'WL_FILEMASK': component.filemask,
             'WL_TEMPLATE': component.template,
+            'WL_NEW_BASE': component.new_base,
             'WL_FILE_FORMAT': component.file_format,
+            'WL_BRANCH': component.branch,
         }
         if translation:
             environment['WL_LANGUAGE'] = translation.language_code

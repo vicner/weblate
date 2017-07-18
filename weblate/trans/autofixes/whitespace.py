@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
@@ -29,9 +29,7 @@ END = re.compile(r'(\s+)$', re.UNICODE)
 
 
 class SameBookendingWhitespace(AutoFix):
-    '''
-    Help non-techy translators with their whitespace
-    '''
+    """Help non-techy translators with their whitespace"""
 
     fix_id = 'end-whitespace'
     name = _('Trailing and leading whitespace')

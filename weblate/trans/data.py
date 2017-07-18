@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,14 +15,12 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-"""
-Data files helpers.
-"""
-import shutil
+"""Data files helpers."""
 import os
-from weblate import appsettings
+
+from django.conf import settings
 
 
 def create_and_check_dir(path):
@@ -37,10 +35,8 @@ def create_and_check_dir(path):
 
 
 def check_data_writable():
-    """
-    Check we can write to data dir.
-    """
-    create_and_check_dir(appsettings.DATA_DIR)
+    """Check we can write to data dir."""
+    create_and_check_dir(settings.DATA_DIR)
     create_and_check_dir(data_dir('home'))
     create_and_check_dir(data_dir('whoosh'))
     create_and_check_dir(data_dir('ssh'))
@@ -48,32 +44,5 @@ def check_data_writable():
 
 
 def data_dir(component):
-    """
-    Returns path to data dir for given component.
-    """
-    return os.path.join(appsettings.DATA_DIR, component)
-
-
-def migrate_data_dirs():
-    """
-    Migrate data directory from old locations to new consolidated data
-    directory.
-    """
-    check_data_writable()
-
-    vcs = data_dir('vcs')
-    if os.path.exists(appsettings.GIT_ROOT) and not os.path.exists(vcs):
-        shutil.move(appsettings.GIT_ROOT, vcs)
-
-    whoosh = data_dir('whoosh')
-    if os.path.exists(appsettings.WHOOSH_INDEX) and not os.path.exists(whoosh):
-        shutil.move(appsettings.WHOOSH_INDEX, whoosh)
-
-    ssh_home = os.path.expanduser('~/.ssh')
-    ssh = data_dir('ssh')
-    for name in ('known_hosts', 'id_rsa', 'id_rsa.pub'):
-        source = os.path.join(ssh_home, name)
-        target = os.path.join(ssh, name)
-
-        if os.path.exists(source) and not os.path.exists(target):
-            shutil.copy(source, target)
+    """Return path to data dir for given component."""
+    return os.path.join(settings.DATA_DIR, component)

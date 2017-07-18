@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
@@ -32,9 +32,7 @@ PLURAL_MATCH = re.compile(r'\(s\)(\W|\Z)')
 
 
 class OptionalPluralCheck(SourceCheck):
-    '''
-    Check for not used plural form.
-    '''
+    """Check for not used plural form."""
     check_id = 'optional_plural'
     name = _('Optional plural')
     description = _(
@@ -49,9 +47,7 @@ class OptionalPluralCheck(SourceCheck):
 
 
 class EllipsisCheck(SourceCheck):
-    '''
-    Check for using ... instead of …
-    '''
+    """Check for using ... instead of …"""
     check_id = 'ellipsis'
     name = _('Ellipsis')
     description = _(
@@ -65,9 +61,7 @@ class EllipsisCheck(SourceCheck):
 
 
 class MultipleFailingCheck(SourceCheck):
-    '''
-    Checks whether there are more failing checks on this translation.
-    '''
+    """Check whether there are more failing checks on this translation."""
     check_id = 'multiple_failures'
     name = _('Multiple failing checks')
     description = _(
@@ -77,7 +71,7 @@ class MultipleFailingCheck(SourceCheck):
 
     def check_source(self, source, unit):
         related = Check.objects.filter(
-            contentsum=unit.contentsum,
+            content_hash=unit.content_hash,
             project=unit.translation.subproject.project
         ).exclude(
             language__isnull=True

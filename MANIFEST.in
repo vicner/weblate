@@ -13,6 +13,7 @@ recursive-include weblate/static *
 recursive-include weblate/templates *.txt
 recursive-include weblate/templates *.html
 recursive-include weblate/templates *.svg
+recursive-include weblate/legal/templates *.html
 recursive-include weblate/locale *.pot
 recursive-include weblate/locale *.po
 recursive-include weblate/locale *.mo
@@ -28,6 +29,7 @@ include docs/_templates/*.html
 recursive-include examples *
 include weblate/billing/test-data/*
 include weblate/trans/tests/data/*
+include weblate/trans/fixtures/simple-project.json
 include weblate/trans/widget-images/*.png
 include weblate/lang/plurals.txt
 exclude weblate/settings.py

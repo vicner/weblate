@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,75 +15,90 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
 
-from weblate.trans.machine.base import (
-    MachineTranslation, MissingConfiguration
-)
-from weblate import appsettings
+from django.conf import settings
+
+from weblate.trans.machine.base import MachineTranslation, MissingConfiguration
+
+
+LANGUAGE_MAP = {
+    'ca': 'cat',
+    'cy': 'cym',
+    'en': 'eng',
+    'eo': 'epo',
+    'gl': 'glg',
+    'bs': 'hbs_BS',
+    'is': 'isl',
+    'es': 'spa',
+    'en_US': 'eng',
+    'en_UK': 'eng',
+    'nl': 'nld',
+    'ro': 'ron',
+    'de': 'deu',
+}
 
 
 class ApertiumAPYTranslation(MachineTranslation):
-    '''
-    Apertium machine translation support.
-    '''
+    """Apertium machine translation support."""
     name = 'Apertium APy'
 
     def __init__(self):
-        '''
-        Checks configuration.
-        '''
+        """Check configuration."""
         super(ApertiumAPYTranslation, self).__init__()
         self.url = self.get_server_url()
 
     def get_server_url(self):
-        '''
-        Returns URL of a server.
-        '''
-        if appsettings.MT_APERTIUM_APY is None:
+        """Return URL of a server."""
+        if settings.MT_APERTIUM_APY is None:
             raise MissingConfiguration(
                 'Not configured Apertium APy URL'
             )
 
-        return appsettings.MT_APERTIUM_APY.rstrip('/')
+        return settings.MT_APERTIUM_APY.rstrip('/')
+
+    @property
+    def all_langs(self):
+        """Return all language codes known to service"""
+        langs = self.supported_languages
+        return set(
+            [l[0] for l in langs] +
+            [l[1] for l in langs]
+        )
 
     def convert_language(self, language):
-        '''
-        Converts language to service specific code.
-        '''
-        return language.replace('_', '-').lower()
+        """Convert language to service specific code."""
+        # Force download of supported languages
+        language = language.replace('-', '_')
+        if language not in self.all_langs and language in LANGUAGE_MAP:
+            return LANGUAGE_MAP[language]
+        return language
 
     def download_languages(self):
-        '''
-        Downloads list of supported languages from a service.
-        '''
-        data = self.json_status_req('%s/listPairs' % self.url)
+        """Download list of supported languages from a service."""
+        data = self.json_status_req('{0}/listPairs'.format(self.url))
         return [
             (item['sourceLanguage'], item['targetLanguage'])
             for item in data['responseData']
         ]
 
     def is_supported(self, source, language):
-        '''
-        Checks whether given language combination is supported.
-        '''
+        """Check whether given language combination is supported."""
         return (source, language) in self.supported_languages
 
     def download_translations(self, source, language, text, unit, user):
-        '''
-        Downloads list of possible translations from Apertium.
-        '''
+        """Download list of possible translations from Apertium."""
         args = {
-            'langpair': '%s|%s' % (source, language),
+            'langpair': '{0}|{1}'.format(source, language),
             'q': text,
         }
-        if appsettings.MT_APERTIUM_KEY is not None:
-            args['key'] = appsettings.MT_APERTIUM_KEY
+        if settings.MT_APERTIUM_KEY is not None:
+            args['key'] = settings.MT_APERTIUM_KEY
         response = self.json_status_req(
-            '%s/translate' % self.url,
+            '{0}/translate'.format(self.url),
             **args
         )
 
@@ -96,9 +111,7 @@ class ApertiumAPYTranslation(MachineTranslation):
 
 
 class ApertiumTranslation(ApertiumAPYTranslation):
-    '''
-    Apertium machine translation support.
-    '''
+    """Apertium machine translation support."""
     name = 'Apertium'
 
     def get_server_url(self):

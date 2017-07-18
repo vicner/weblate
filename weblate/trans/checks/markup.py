@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
@@ -40,16 +40,12 @@ XML_ENTITY_MATCH = re.compile(r'&#?\w+;')
 
 
 def strip_entities(text):
-    '''
-    Strips all HTML entities (we don't care about them).
-    '''
+    """Strip all HTML entities (we don't care about them)."""
     return XML_ENTITY_MATCH.sub('', text)
 
 
 class BBCodeCheck(TargetCheck):
-    '''
-    Check for matching bbcode tags.
-    '''
+    """Check for matching bbcode tags."""
     check_id = 'bbcode'
     name = _('Mismatched BBcode')
     description = _('BBcode in translation does not match source')
@@ -66,8 +62,8 @@ class BBCodeCheck(TargetCheck):
         if len(src_match) != len(tgt_match):
             return True
 
-        src_tags = set([x[1] for x in src_match])
-        tgt_tags = set([x[1] for x in tgt_match])
+        src_tags = {x[1] for x in src_match}
+        tgt_tags = {x[1] for x in tgt_match}
 
         return src_tags != tgt_tags
 
@@ -87,9 +83,7 @@ class BBCodeCheck(TargetCheck):
 
 class BaseXMLCheck(TargetCheck):
     def parse_xml(self, text):
-        '''
-        Wrapper for parsing XML.
-        '''
+        """Wrapper for parsing XML."""
         text = ''.join(
             ('<weblate>', strip_entities(text), '</weblate>')
         )
@@ -101,25 +95,20 @@ class BaseXMLCheck(TargetCheck):
 
     def is_source_xml(self, flags, source):
         """Quick check if source looks like XML."""
-        if 'xml-text' not in flags:
-            if '<' not in source or len(XML_MATCH.findall(source)) == 0:
-                return False
-        return True
+        if 'xml-text' in flags:
+            return True
+        return '<' in source and len(XML_MATCH.findall(source))
 
     def check_single(self, source, target, unit):
-        '''
-        Check for single phrase, not dealing with plurals.
-        '''
+        """Check for single phrase, not dealing with plurals."""
         raise NotImplementedError()
 
 
 class XMLValidityCheck(BaseXMLCheck):
-    '''
-    Check whether XML in target is valid.
-    '''
+    """Check whether XML in target is valid."""
     check_id = 'xml-invalid'
     name = _('Invalid XML markup')
-    description = _('The translaton is not valid XML')
+    description = _('The translation is not valid XML')
     severity = 'danger'
 
     def check_single(self, source, target, unit):
@@ -144,9 +133,7 @@ class XMLValidityCheck(BaseXMLCheck):
 
 
 class XMLTagsCheck(BaseXMLCheck):
-    '''
-    Check whether XML in target matches source.
-    '''
+    """Check whether XML in target matches source."""
     check_id = 'xml-tags'
     name = _('XML tags mismatch')
     description = _('XML tags in translation do not match source')

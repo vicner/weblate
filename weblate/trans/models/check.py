@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
@@ -31,10 +31,10 @@ CHECK_CHOICES = [(x, CHECKS[x].name) for x in CHECKS]
 
 @python_2_unicode_compatible
 class Check(models.Model):
-    contentsum = models.CharField(max_length=40, db_index=True)
+    content_hash = models.BigIntegerField(db_index=True)
     project = models.ForeignKey('Project')
     language = models.ForeignKey(Language, null=True, blank=True)
-    check = models.CharField(max_length=20, choices=CHECK_CHOICES)
+    check = models.CharField(max_length=50, choices=CHECK_CHOICES)
     ignore = models.BooleanField(db_index=True, default=False)
 
     _for_unit = None
@@ -64,7 +64,7 @@ class Check(models.Model):
             ('ignore_check', "Can ignore check results"),
         )
         app_label = 'trans'
-        unique_together = ('contentsum', 'project', 'language', 'check')
+        unique_together = ('content_hash', 'project', 'language', 'check')
 
     def __str__(self):
         return '{0}/{1}: {2}'.format(
@@ -89,8 +89,6 @@ class Check(models.Model):
         return ''
 
     def set_ignore(self):
-        '''
-        Sets ignore flag.
-        '''
+        """Set ignore flag."""
         self.ignore = True
         self.save()

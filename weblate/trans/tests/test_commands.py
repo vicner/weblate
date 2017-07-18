@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,12 +15,12 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""
-Tests for management commands.
-"""
+"""Test for management commands."""
+
+from unittest import SkipTest
 
 from six import StringIO
 
@@ -35,6 +35,7 @@ from weblate.trans.models import (
 )
 from weblate.runner import main
 from weblate.trans.tests.utils import get_test_file
+from weblate.trans.vcs import HgRepository
 from weblate.accounts.models import Profile
 
 TEST_PO = get_test_file('cs.po')
@@ -133,7 +134,7 @@ class ImportProjectTest(RepoTestCase):
             self.git_repo_path,
             'master',
             '**/*.po',
-            component_regexp=r'(?P<name>[^/-]*)/.*\.po'
+            component_regexp=r'(?P<name>[^/-]*)/(?P<language>.*)\.po'
         )
         self.assertEqual(project.subproject_set.count(), 1)
 
@@ -145,7 +146,7 @@ class ImportProjectTest(RepoTestCase):
             self.git_repo_path,
             'master',
             '**/*.po',
-            component_regexp=r'(?P<name>[^/-]*)/.*\.po',
+            component_regexp=r'(?P<name>[^/-]*)/(?P<language>.*)\.po',
             name_template='Test name'
         )
         self.assertEqual(project.subproject_set.count(), 1)
@@ -256,16 +257,14 @@ class ImportProjectTest(RepoTestCase):
         self.assertEqual(project.subproject_set.count(), 4)
 
     def test_import_against_existing(self):
-        '''
-        Test importing with a weblate:// URL
-        '''
+        """Test importing with a weblate:// URL"""
         android = self.create_android()
         project = android.project
         self.assertEqual(project.subproject_set.count(), 1)
         call_command(
             'import_project',
             project.slug,
-            'weblate://%s/%s' % (project.slug, android.slug),
+            'weblate://{0!s}/{1!s}'.format(project.slug, android.slug),
             'master',
             '**/*.po',
         )
@@ -273,9 +272,7 @@ class ImportProjectTest(RepoTestCase):
         self.assertEqual(project.subproject_set.count(), 5)
 
     def test_import_missing_project(self):
-        '''
-        Test of correct handling of missing project.
-        '''
+        """Test of correct handling of missing project."""
         self.assertRaises(
             CommandError,
             call_command,
@@ -287,9 +284,7 @@ class ImportProjectTest(RepoTestCase):
         )
 
     def test_import_missing_wildcard(self):
-        '''
-        Test of correct handling of missing wildcard.
-        '''
+        """Test of correct handling of missing wildcard."""
         self.create_project()
         self.assertRaises(
             CommandError,
@@ -299,6 +294,52 @@ class ImportProjectTest(RepoTestCase):
             self.git_repo_path,
             'master',
             '*/*.po',
+        )
+
+    def test_import_wrong_vcs(self):
+        """Test of correct handling of wrong vcs."""
+        self.create_project()
+        self.assertRaises(
+            CommandError,
+            call_command,
+            'import_project',
+            'test',
+            self.git_repo_path,
+            'master',
+            '**/*.po',
+            vcs='nonexisting',
+        )
+
+    def test_import_mercurial(self):
+        """Test importing Mercurial project"""
+        if not HgRepository.is_supported():
+            raise SkipTest('Mercurial not available!')
+        project = self.create_project()
+        call_command(
+            'import_project',
+            'test',
+            self.hg_repo_path,
+            'default',
+            '**/*.po',
+            vcs='mercurial'
+        )
+        # We should have loaded four subprojects
+        self.assertEqual(project.subproject_set.count(), 3)
+
+    def test_import_mercurial_mixed(self):
+        """Test importing Mercurial project with mixed component/lang"""
+        if not HgRepository.is_supported():
+            raise SkipTest('Mercurial not available!')
+        self.create_project()
+        self.assertRaises(
+            CommandError,
+            call_command,
+            'import_project',
+            'test',
+            self.hg_repo_path,
+            'default',
+            '*/**.po',
+            vcs='mercurial'
         )
 
 
@@ -320,7 +361,7 @@ class PeriodicCommandTest(RepoTestCase):
     def test_cleanup(self):
         Suggestion.objects.create(
             project=self.subproject.project,
-            contentsum='x',
+            content_hash=1,
             language=self.subproject.translation_set.all()[0].language,
         )
         call_command(
@@ -400,10 +441,7 @@ class PeriodicCommandTest(RepoTestCase):
 
 
 class CheckGitTest(RepoTestCase):
-    '''
-    Base class for handling tests of WeblateCommand
-    based commands.
-    '''
+    """Base class for handling tests of WeblateCommand based commands."""
     command_name = 'checkgit'
     expected_string = 'On branch master'
 
@@ -511,9 +549,7 @@ class FixupFlagsTest(CheckGitTest):
 
 
 class ListTranslatorsTest(RepoTestCase):
-    '''
-    Test translators list
-    '''
+    """Test translators list"""
     def setUp(self):
         super(ListTranslatorsTest, self).setUp()
         self.create_subproject()
@@ -533,9 +569,7 @@ class ListTranslatorsTest(RepoTestCase):
 
 
 class LockingCommandTest(RepoTestCase):
-    '''
-    Test locking and unlocking.
-    '''
+    """Test locking and unlocking."""
     def setUp(self):
         super(LockingCommandTest, self).setUp()
         self.create_subproject()
@@ -568,9 +602,7 @@ class LockingCommandTest(RepoTestCase):
 
 
 class BenchmarkCommandTest(RepoTestCase):
-    '''
-    Benchmarking test.
-    '''
+    """Benchmarking test."""
     def setUp(self):
         super(BenchmarkCommandTest, self).setUp()
         self.create_subproject()
@@ -584,12 +616,10 @@ class BenchmarkCommandTest(RepoTestCase):
         self.assertIn('function calls', output.getvalue())
 
 
-class SuggesionCommandTest(RepoTestCase):
-    '''
-    Test suggestion addding.
-    '''
+class SuggestionCommandTest(RepoTestCase):
+    """Test suggestion addding."""
     def setUp(self):
-        super(SuggesionCommandTest, self).setUp()
+        super(SuggestionCommandTest, self).setUp()
         self.subproject = self.create_subproject()
 
     def test_add_suggestions(self):
@@ -631,9 +661,7 @@ class SuggesionCommandTest(RepoTestCase):
 
 
 class ImportCommandTest(RepoTestCase):
-    '''
-    Import test.
-    '''
+    """Import test."""
     def setUp(self):
         super(ImportCommandTest, self).setUp()
         self.subproject = self.create_subproject()
@@ -677,18 +705,30 @@ class ImportCommandTest(RepoTestCase):
         )
 
     def test_import_ignore(self):
+        output = StringIO()
         call_command(
             'import_json',
             '--main-component', 'test',
             '--project', 'test',
             TEST_COMPONENTS,
+            stdout=output
         )
+        self.assertIn(
+            'Imported Test/Gettext PO with 3 translations',
+            output.getvalue()
+        )
+        output.truncate()
         call_command(
             'import_json',
             '--main-component', 'test',
             '--project', 'test',
             '--ignore',
             TEST_COMPONENTS,
+            stderr=output
+        )
+        self.assertIn(
+            'Component Test/Gettext PO already exists',
+            output.getvalue()
         )
 
     def test_import_update(self):

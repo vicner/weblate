@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from django.core.urlresolvers import reverse
@@ -24,13 +24,14 @@ from django.db.models.signals import post_save, pre_save
 
 from weblate.trans.models import SubProject, Project
 from weblate.trans.site import get_site_url
+from weblate.utils.decorators import disable_for_loaddata
 
 
 SUPPORTED_VCS = frozenset(('git', 'gerrit', 'github', 'subversion'))
 
 
 def get_export_url(component):
-    """Returns Git export URL for component"""
+    """Return Git export URL for component"""
     return get_site_url(
         reverse(
             'git-export',
@@ -50,6 +51,7 @@ def save_component(sender, instance, **kwargs):
 
 
 @receiver(post_save, sender=Project)
+@disable_for_loaddata
 def save_project(sender, instance, **kwargs):
     for component in instance.subproject_set.all():
         if not component.is_repo_link and component.vcs in SUPPORTED_VCS:

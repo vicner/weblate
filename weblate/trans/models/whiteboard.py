@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 """Whiteboard model."""
@@ -30,7 +30,7 @@ from weblate.lang.models import Language
 
 class WhiteboardManager(models.Manager):
     def context_filter(self, project=None, subproject=None, language=None):
-        """Filters whiteboard messages by context."""
+        """Filter whiteboard messages by context."""
         base = self.all()
 
         if language and project is None and subproject is None:
@@ -110,10 +110,10 @@ class WhiteboardMessage(models.Model):
         return self.message
 
     def clean(self):
-        if self.project and self.subproject:
-            if self.subproject.project != self.project:
-                raise ValidationError(
-                    _('Do not specify both component and project!')
-                )
+        if (self.project and self.subproject
+                and self.subproject.project != self.project):
+            raise ValidationError(
+                _('Do not specify both component and project!')
+            )
         if not self.project and self.subproject:
             self.project = self.subproject.project

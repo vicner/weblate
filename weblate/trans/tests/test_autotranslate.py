@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,12 +15,10 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""
-Tests for automatic translation
-"""
+"""Test for automatic translation"""
 
 from django.core.urlresolvers import reverse
 from django.core.management import call_command
@@ -51,9 +49,7 @@ class AutoTranslationTest(ViewTestCase):
         )
 
     def test_none(self):
-        '''
-        Tests for automatic translation with no content.
-        '''
+        """Test for automatic translation with no content."""
         url = reverse('auto_translation', kwargs=self.kw_translation)
         response = self.client.post(
             url
@@ -88,9 +84,7 @@ class AutoTranslationTest(ViewTestCase):
         self.assertEqual(translation.translated, expected)
 
     def test_different(self):
-        '''
-        Tests for automatic translation with different content.
-        '''
+        """Test for automatic translation with different content."""
         self.perform_auto()
 
     def test_inconsistent(self):

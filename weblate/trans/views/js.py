@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from django.shortcuts import render, get_object_or_404
@@ -24,30 +24,29 @@ from django.http import (
 )
 from django.core.exceptions import PermissionDenied
 from django.utils.encoding import force_text
+from django.utils.http import urlencode
 
+from weblate.permissions.helpers import check_access
+from weblate.screenshots.forms import ScreenshotForm
 from weblate.trans.models import Unit, Check, Change
 from weblate.trans.machine import MACHINE_TRANSLATION_SERVICES
 from weblate.trans.views.helper import (
     get_project, get_subproject, get_translation
 )
-from weblate.trans.forms import (
-    PriorityForm, CheckFlagsForm, ScreenshotUploadForm,
-)
+from weblate.trans.forms import PriorityForm, CheckFlagsForm
 from weblate.trans.validators import EXTRA_FLAGS
 from weblate.trans.checks import CHECKS
-from weblate.trans.permissions import (
+from weblate.permissions.helpers import (
     can_use_mt, can_see_repository_status, can_ignore_check,
 )
-
-from six.moves.urllib.parse import urlencode
+from weblate.utils.hash import checksum_to_hash
+from weblate.trans.util import sort_objects
 
 
 def translate(request, unit_id):
-    '''
-    AJAX handler for translating.
-    '''
+    """AJAX handler for translating."""
     unit = get_object_or_404(Unit, pk=int(unit_id))
-    unit.check_acl(request)
+    check_access(request, unit.translation.subproject.project)
     if not can_use_mt(request.user, unit.translation):
         raise PermissionDenied()
 
@@ -77,7 +76,7 @@ def translate(request, unit_id):
         )
         response['responseStatus'] = 200
     except Exception as exc:
-        response['responseDetails'] = '%s: %s' % (
+        response['responseDetails'] = '{0}: {1}'.format(
             exc.__class__.__name__,
             str(exc)
         )
@@ -88,11 +87,9 @@ def translate(request, unit_id):
 
 
 def get_unit_changes(request, unit_id):
-    '''
-    Returns unit's recent changes.
-    '''
+    """Return unit's recent changes."""
     unit = get_object_or_404(Unit, pk=int(unit_id))
-    unit.check_acl(request)
+    check_access(request, unit.translation.subproject.project)
 
     return render(
         request,
@@ -104,13 +101,34 @@ def get_unit_changes(request, unit_id):
     )
 
 
+def get_unit_translations(request, unit_id):
+    """Return unit's other translations."""
+    unit = get_object_or_404(Unit, pk=int(unit_id))
+    check_access(request, unit.translation.subproject.project)
+
+    return render(
+        request,
+        'js/translations.html',
+        {
+            'units': sort_objects(
+                Unit.objects.filter(
+                    id_hash=unit.id_hash,
+                    translation__subproject=unit.translation.subproject,
+                ).exclude(
+                    pk=unit.pk
+                )
+            ),
+        }
+    )
+
+
 def ignore_check(request, check_id):
     obj = get_object_or_404(Check, pk=int(check_id))
+    check_access(request, obj.project)
 
     if not can_ignore_check(request.user, obj.project):
         raise PermissionDenied()
 
-    obj.project.check_acl(request)
     # Mark check for ignoring
     obj.set_ignore()
     # response for AJAX
@@ -195,9 +213,7 @@ def git_status_translation(request, project, subproject, lang):
 
 
 def mt_services(request):
-    '''
-    Generates list of installed machine translation services in JSON.
-    '''
+    """Generate list of installed machine translation services in JSON."""
     # Machine translation
     machine_services = list(MACHINE_TRANSLATION_SERVICES.keys())
 
@@ -208,14 +224,15 @@ def mt_services(request):
 
 
 def get_detail(request, project, subproject, checksum):
-    '''
-    Returns source translation detail in all languages.
-    '''
+    """Return source translation detail in all languages."""
     subproject = get_subproject(request, project, subproject)
-    units = Unit.objects.filter(
-        checksum=checksum,
-        translation__subproject=subproject
-    )
+    try:
+        units = Unit.objects.filter(
+            id_hash=checksum_to_hash(checksum),
+            translation__subproject=subproject
+        )
+    except ValueError:
+        raise Http404('Non existing unit!')
     try:
         source = units[0].source_info
     except IndexError:
@@ -241,7 +258,7 @@ def get_detail(request, project, subproject, checksum):
             'check_flags_form': CheckFlagsForm(
                 initial={'flags': source.check_flags}
             ),
-            'screenshot_form': ScreenshotUploadForm(instance=source),
+            'screenshot_form': ScreenshotForm(),
             'extra_flags': extra_flags,
             'check_flags': check_flags,
         }

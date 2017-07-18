@@ -128,7 +128,7 @@ Automatically receiving changes from GitHub
 
 Weblate comes with native support for GitHub. To receive notifications on every
 push to GitHub repository, you just need to enable Weblate Service in the
-repository settings (:guilabel:`Webhooks & Services`) as shown on the image below:
+repository settings (:guilabel:`Integrations & services`) as shown on the image below:
 
 .. image:: ../images/github-settings.png
 
@@ -290,6 +290,12 @@ Additionally following environment variables are available:
 
     Absolute path to VCS repository.
 
+.. envvar:: WL_BRANCH
+
+    .. versionadded:: 2.11
+
+    Repository branch configured in the current component.
+
 .. envvar:: WL_FILEMASK
 
     File mask for current component.
@@ -297,6 +303,13 @@ Additionally following environment variables are available:
 .. envvar:: WL_TEMPLATE
 
     File name of template for monolingual translations (can be empty).
+
+.. envvar:: WL_NEW_BASE
+
+    .. versionadded:: 2.14
+
+    File name of the file which is used for creating new translations (can be
+    empty).
 
 .. envvar:: WL_FILE_FORMAT
 

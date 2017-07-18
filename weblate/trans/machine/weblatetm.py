@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,26 +15,16 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
 
 from django.utils.encoding import force_text
+
+from weblate.permissions.helpers import can_access_project
 from weblate.trans.machine.base import MachineTranslation
 from weblate.trans.models.unit import Unit
-
-
-def format_unit_match(unit, quality):
-    '''
-    Formats unit to translation service result.
-    '''
-    return (
-        unit.get_target_plurals()[0],
-        quality,
-        'Weblate (%s)' % force_text(unit.translation.subproject),
-        unit.get_source_plurals()[0],
-    )
 
 
 class WeblateBase(MachineTranslation):
@@ -42,45 +32,47 @@ class WeblateBase(MachineTranslation):
     # pylint: disable=W0223
 
     def is_supported(self, source, language):
-        '''
-        Any language is supported.
-        '''
+        """Any language is supported."""
         return True
+
+    def format_unit_match(self, unit, quality):
+        """Format unit to translation service result."""
+        return (
+            unit.get_target_plurals()[0],
+            quality,
+            '{0} ({1})'.format(
+                self.name,
+                force_text(unit.translation.subproject)
+            ),
+            unit.get_source_plurals()[0],
+        )
 
 
 class WeblateTranslation(WeblateBase):
-    '''
-    Translation service using strings already translated in Weblate.
-    '''
+    """Translation service using strings already translated in Weblate."""
     name = 'Weblate'
 
     def download_translations(self, source, language, text, unit, user):
-        '''
-        Downloads list of possible translations from a service.
-        '''
+        """Download list of possible translations from a service."""
         matching_units = Unit.objects.same_source(unit)
 
         return [
-            format_unit_match(munit, 100)
+            self.format_unit_match(munit, 100)
             for munit in matching_units
-            if munit.has_acl(user)
+            if can_access_project(user, munit.translation.subproject.project)
         ]
 
 
 class WeblateSimilarTranslation(WeblateBase):
-    '''
-    Translation service using strings already translated in Weblate.
-    '''
+    """Translation service using strings already translated in Weblate."""
     name = 'Weblate similarity'
 
     def download_translations(self, source, language, text, unit, user):
-        '''
-        Downloads list of possible translations from a service.
-        '''
+        """Download list of possible translations from a service."""
         matching_units = Unit.objects.more_like_this(unit)
 
         return [
-            format_unit_match(munit, 50)
+            self.format_unit_match(munit, 50)
             for munit in matching_units
-            if munit.has_acl(user)
+            if can_access_project(user, munit.translation.subproject.project)
         ]

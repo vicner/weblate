@@ -125,10 +125,6 @@ Enable ACL
     Enable per project access control, see :ref:`acl` for more details.
 Enable hooks
     Whether unauthenticated :ref:`hooks` will be enabled for this repository.
-Owners
-    You can also configure project owners, who will always get important
-    notifications about project and will have additional privileges to control
-    translations within this project (see :ref:`privileges`).
 Source language
     Language used for source strings in all components. Change this if you are 
     translating from something else than English.
@@ -190,6 +186,14 @@ Repository push URL
 Repository browser
     URL of repository browser to display source files (location where messages
     are used). When empty no such links will be generated.
+
+    You can use following format strings:
+        
+    * ``%(branchs)s`` - current branch
+    * ``%(line)s`` - line in file
+    * ``%(file)s`` - filename
+    * ``%(../file)s`` - filename in parent directory
+    * ``%(../../file)s`` - filename in grandparent directory
 
     For example on GitHub, you would use something like
     ``https://github.com/WeblateOrg/hello/blob/%(branch)s/%(file)s#L%(line)s``.
@@ -309,6 +313,8 @@ strings in the message:
     Component name
 ``%(project)s``
     Project name
+``%(url)s``
+    Translation URL
 ``%(total)s``
     Total strings count
 ``%(fuzzy)s``

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,13 +15,14 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from datetime import timedelta
 import os.path
 
 from django.test import TestCase
+from django.test.utils import override_settings
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
@@ -32,7 +33,6 @@ from six import StringIO
 
 from weblate.billing.models import Plan, Billing, Invoice
 from weblate.trans.models import Project
-from weblate.trans.tests import OverrideSettings
 
 
 TEST_DATA = os.path.join(
@@ -165,7 +165,7 @@ class BillingTest(TestCase):
         # Validation of existing
         self.invoice.clean()
 
-    @OverrideSettings(INVOICE_PATH=TEST_DATA)
+    @override_settings(INVOICE_PATH=TEST_DATA)
     def test_download(self):
         # Unauthenticated
         response = self.client.get(

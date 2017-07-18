@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from django.utils.translation import ugettext_lazy as _
@@ -23,9 +23,7 @@ from weblate.trans.checks.base import TargetCheck
 
 
 class PluralsCheck(TargetCheck):
-    '''
-    Check for incomplete plural forms
-    '''
+    """Check for incomplete plural forms"""
     check_id = 'plurals'
     name = _('Missing plurals')
     description = _('Some plural forms are not translated')
@@ -42,16 +40,12 @@ class PluralsCheck(TargetCheck):
         return '' in targets
 
     def check_single(self, source, target, unit):
-        '''
-        We don't check target strings here.
-        '''
+        """We don't check target strings here."""
         return False
 
 
 class SamePluralsCheck(TargetCheck):
-    '''
-    Check for same plural forms
-    '''
+    """Check for same plural forms"""
     check_id = 'same-plurals'
     name = _('Same plurals')
     description = _('Some plural forms are translated in the same way')
@@ -66,16 +60,12 @@ class SamePluralsCheck(TargetCheck):
         return len(set(targets)) != len(targets)
 
     def check_single(self, source, target, unit):
-        '''
-        We don't check target strings here.
-        '''
+        """We don't check target strings here."""
         return False
 
 
 class ConsistencyCheck(TargetCheck):
-    '''
-    Check for inconsistent translations
-    '''
+    """Check for inconsistent translations"""
     check_id = 'inconsistent'
     name = _('Inconsistent')
     description = _(
@@ -85,13 +75,10 @@ class ConsistencyCheck(TargetCheck):
     severity = 'warning'
 
     def check_target_unit(self, sources, targets, unit):
-        from weblate.trans.models import Unit
         # Do not check consistency if user asked not to have it
         if not unit.translation.subproject.allow_translation_propagation:
             return False
-        related = Unit.objects.same(
-            unit
-        ).exclude(
+        related = unit.same_units().exclude(
             target=unit.target
         ).filter(
             translation__subproject__allow_translation_propagation=True
@@ -103,7 +90,26 @@ class ConsistencyCheck(TargetCheck):
         return related.exists()
 
     def check_single(self, source, target, unit):
-        '''
-        We don't check target strings here.
-        '''
+        """We don't check target strings here."""
+        return False
+
+
+class TranslatedCheck(TargetCheck):
+    """Check for inconsistent translations"""
+    check_id = 'translated'
+    name = _('Has been translated')
+    description = _(
+        'This string has been translated in the past'
+    )
+    ignore_untranslated = False
+    severity = 'warning'
+
+    def check_target_unit(self, sources, targets, unit):
+        if unit.translated:
+            return False
+
+        return unit.change_set.content().exists()
+
+    def check_single(self, source, target, unit):
+        """We don't check target strings here."""
         return False

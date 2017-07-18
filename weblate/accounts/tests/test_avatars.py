@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 """
@@ -33,7 +33,7 @@ import httpretty
 from PIL import Image
 
 from weblate.accounts import avatar
-from weblate.trans.tests.test_views import ViewTestCase
+from weblate.trans.tests.test_views import FixtureTestCase
 
 
 TEST_URL = (
@@ -42,7 +42,7 @@ TEST_URL = (
 )
 
 
-class AvatarTest(ViewTestCase):
+class AvatarTest(FixtureTestCase):
     def setUp(self):
         super(AvatarTest, self).setUp()
         self.user.email = 'test@example.com'
@@ -87,7 +87,7 @@ class AvatarTest(ViewTestCase):
                 kwargs={'user': self.user.username, 'size': 32}
             )
         )
-        self.assertPNG(response)
+        self.assert_png(response)
         self.assertEqual(response.content, imagedata)
         # Test caching
         response = self.client.get(
@@ -96,7 +96,7 @@ class AvatarTest(ViewTestCase):
                 kwargs={'user': self.user.username, 'size': 32}
             )
         )
-        self.assertPNG(response)
+        self.assert_png(response)
         self.assertEqual(response.content, imagedata)
 
     @httpretty.activate
@@ -115,7 +115,7 @@ class AvatarTest(ViewTestCase):
                 kwargs={'user': self.user.username, 'size': 32}
             )
         )
-        self.assertPNG(response)
+        self.assert_png(response)
 
     def test_anonymous_avatar(self):
         anonymous = User.objects.get(username='anonymous')
@@ -132,6 +132,6 @@ class AvatarTest(ViewTestCase):
         )
 
     def test_fallback_avatar(self):
-        self.assertPNGData(
+        self.assert_png_data(
             avatar.get_fallback_avatar(32)
         )

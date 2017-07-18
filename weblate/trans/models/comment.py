@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,30 +15,29 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
 
-from django.db import models
 from django.contrib.auth.models import User
+from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
+
 from weblate.lang.models import Language
+from weblate.trans.mixins import UserDisplayMixin
 from weblate.trans.models.change import Change
-from weblate.accounts.avatar import get_user_display
-from weblate.accounts.models import notify_new_comment
+from weblate.accounts.notifications import notify_new_comment
 
 
 class CommentManager(models.Manager):
     # pylint: disable=W0232
 
     def add(self, unit, user, lang, text):
-        '''
-        Adds comment to this unit.
-        '''
+        """Add comment to this unit."""
         new_comment = self.create(
             user=user,
-            contentsum=unit.contentsum,
+            content_hash=unit.content_hash,
             project=unit.translation.subproject.project,
             comment=text,
             language=lang
@@ -61,8 +60,8 @@ class CommentManager(models.Manager):
 
 
 @python_2_unicode_compatible
-class Comment(models.Model):
-    contentsum = models.CharField(max_length=40, db_index=True)
+class Comment(models.Model, UserDisplayMixin):
+    content_hash = models.BigIntegerField(db_index=True)
     comment = models.TextField()
     user = models.ForeignKey(User, null=True, blank=True)
     project = models.ForeignKey('Project')
@@ -77,9 +76,6 @@ class Comment(models.Model):
 
     def __str__(self):
         return 'comment for {0} by {1}'.format(
-            self.contentsum,
+            self.content_hash,
             self.user.username if self.user else 'unknown',
         )
-
-    def get_user_display(self):
-        return get_user_display(self.user, link=True)

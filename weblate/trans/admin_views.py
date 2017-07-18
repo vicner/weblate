@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,26 +15,24 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
 
 import os.path
 
+from django.conf import settings
 from django.contrib.sites.models import Site
 from django.shortcuts import render
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib import admin
 from django.utils.translation import ugettext as _
-from django.conf import settings
-import django
 
 import six
 
 from weblate.trans.models import SubProject, IndexUpdate
 from weblate import settings_example
-from weblate import appsettings
 from weblate.accounts.avatar import HAS_LIBRAVATAR
 from weblate.trans.util import (
     get_configuration_errors, HAS_PYUCA, check_domain
@@ -46,21 +44,10 @@ from weblate.trans.ssh import (
 import weblate
 
 
-def admin_context(request):
-    """Wrapper to get admin context"""
-    # Django has changed number of parameters
-    # pylint: disable=E1120
-    if django.VERSION < (1, 8, 0):
-        return admin.site.each_context()
-    return admin.site.each_context(request)
-
-
 @staff_member_required
 def report(request):
-    """
-    Provides report about git status of all repos.
-    """
-    context = admin_context(request)
+    """Provide report about git status of all repos."""
+    context = admin.site.each_context(request)
     context['subprojects'] = SubProject.objects.all()
     return render(
         request,
@@ -70,7 +57,7 @@ def report(request):
 
 
 def get_first_loader():
-    """Returns first loader from settings"""
+    """Return first loader from settings"""
     if settings.TEMPLATES:
         loaders = settings.TEMPLATES[0].get(
             'OPTIONS', {}
@@ -88,9 +75,7 @@ def get_first_loader():
 
 @staff_member_required
 def performance(request):
-    """
-    Shows performance tuning tips.
-    """
+    """Show performance tuning tips."""
     checks = []
     # Check for debug mode
     checks.append((
@@ -126,11 +111,11 @@ def performance(request):
     checks.append((
         # Translators: Indexing is postponed to cron job
         _('Indexing offloading'),
-        appsettings.OFFLOAD_INDEXING,
+        settings.OFFLOAD_INDEXING,
         'production-indexing',
-        appsettings.OFFLOAD_INDEXING
+        settings.OFFLOAD_INDEXING
     ))
-    if appsettings.OFFLOAD_INDEXING:
+    if settings.OFFLOAD_INDEXING:
         if IndexUpdate.objects.count() < 20:
             index_updates = True
         elif IndexUpdate.objects.count() < 200:
@@ -175,6 +160,7 @@ def performance(request):
         'root@localhost',
         'webmaster@localhost',
         'noreply@weblate.org'
+        'noreply@example.com'
     )
     checks.append((
         _('Email addresses'),
@@ -204,7 +190,7 @@ def performance(request):
         _('Secret key'),
         settings.SECRET_KEY != settings_example.SECRET_KEY,
         'production-secret',
-        settings.SECRET_KEY,
+        '',
     ))
     # Allowed hosts
     checks.append((
@@ -233,7 +219,7 @@ def performance(request):
         settings.STATIC_ROOT,
     ))
 
-    context = admin_context(request)
+    context = admin.site.each_context(request)
     context['checks'] = checks
     context['errors'] = get_configuration_errors()
 
@@ -246,14 +232,12 @@ def performance(request):
 
 @staff_member_required
 def ssh(request):
-    """
-    Show information and manipulate with SSH key.
-    """
+    """Show information and manipulate with SSH key."""
     # Check whether we can generate SSH key
     can_generate = can_generate_key()
 
     # Grab action type
-    action = request.POST.get('action', None)
+    action = request.POST.get('action')
 
     # Generate key if it does not exist yet
     if can_generate and action == 'generate':
@@ -266,7 +250,7 @@ def ssh(request):
     if action == 'add-host':
         add_host_key(request)
 
-    context = admin_context(request)
+    context = admin.site.each_context(request)
     context['public_key'] = key
     context['can_generate'] = can_generate
     context['host_keys'] = get_host_keys()

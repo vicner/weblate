@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,11 +15,9 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-'''
-Tests for changes done in remote repository.
-'''
+"""Test for changes done in remote repository."""
 
 import shutil
 import os
@@ -62,9 +60,7 @@ msgstr "Nazdar svete!\n"
 
 
 class MultiRepoTest(ViewTestCase):
-    '''
-    Tests handling of remote changes, conflicts and so on.
-    '''
+    """Test handling of remote changes, conflicts and so on."""
     _vcs = 'git'
     _branch = 'master'
     _filemask = 'po/*.po'
@@ -101,9 +97,7 @@ class MultiRepoTest(ViewTestCase):
         self.request = self.get_request('/')
 
     def push_first(self, propagate=True, newtext='Nazdar svete!\n'):
-        '''
-        Changes and pushes first subproject.
-        '''
+        """Change and pushes first subproject."""
         if not propagate:
             # Disable changes propagating
             self.subproject2.allow_translation_propagation = False
@@ -115,9 +109,7 @@ class MultiRepoTest(ViewTestCase):
         self.subproject.do_push(self.request)
 
     def push_replace(self, content, mode):
-        '''
-        Replaces content of a po file and pushes it to remote repository.
-        '''
+        """Replace content of a po file and pushes it to remote repository."""
         # Manually edit po file, adding new unit
         translation = self.subproject.translation_set.get(
             language_code='cs'
@@ -133,9 +125,7 @@ class MultiRepoTest(ViewTestCase):
         translation.subproject.do_push(self.request)
 
     def test_propagate(self):
-        '''
-        Tests handling of propagating.
-        '''
+        """Test handling of propagating."""
         # Do changes in first repo
         self.push_first()
 
@@ -159,9 +149,7 @@ class MultiRepoTest(ViewTestCase):
         self.assertFalse(translation.do_update(self.request))
 
     def test_update(self):
-        '''
-        Tests handling update in case remote has changed.
-        '''
+        """Test handling update in case remote has changed."""
         # Do changes in first repo
         self.push_first(False)
 
@@ -184,9 +172,7 @@ class MultiRepoTest(ViewTestCase):
         self.test_update()
 
     def test_conflict(self):
-        '''
-        Tests conflict handling.
-        '''
+        """Test conflict handling."""
         # Do changes in first repo
         self.push_first(False)
 
@@ -202,9 +188,7 @@ class MultiRepoTest(ViewTestCase):
         self.assertFalse(translation.do_push(self.request))
 
     def test_more_changes(self):
-        '''
-        Test more string changes in remote repo.
-        '''
+        """Test more string changes in remote repo."""
         translation = self.subproject2.translation_set.get(
             language_code='cs'
         )
@@ -224,9 +208,7 @@ class MultiRepoTest(ViewTestCase):
         self.assertEqual(translation.failing_checks, 0)
 
     def test_new_unit(self):
-        '''
-        Tests adding new unit with update.
-        '''
+        """Test adding new unit with update."""
         self.push_replace(EXTRA_PO, 'a')
 
         self.subproject2.do_update(self.request)
@@ -237,9 +219,7 @@ class MultiRepoTest(ViewTestCase):
         self.assertEqual(translation.total, 5)
 
     def test_deleted_unit(self):
-        '''
-        Test removing several units from remote repo.
-        '''
+        """Test removing several units from remote repo."""
         self.push_replace(MINIMAL_PO, 'w')
 
         self.subproject2.do_update(self.request)
@@ -250,10 +230,9 @@ class MultiRepoTest(ViewTestCase):
         self.assertEqual(translation.total, 1)
 
     def test_deleted_stale_unit(self):
-        '''
-        Test removing several units from remote repo with no
+        """Test removing several units from remote repo with no
         other reference, so full cleanup has to happen.
-        '''
+        """
         self.push_replace(MINIMAL_PO, 'w')
         self.subproject.delete()
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 """Exporter using translate-toolkit"""
 from __future__ import unicode_literals
@@ -46,13 +46,13 @@ EXPORTERS = {}
 
 
 def register_exporter(exporter):
-    """Registerss exporter"""
+    """Register an exporter."""
     EXPORTERS[exporter.name] = exporter
     return exporter
 
 
 def get_exporter(name):
-    """Returns registered exporter"""
+    """Return registered exporter"""
     return EXPORTERS[name]
 
 
@@ -63,7 +63,7 @@ class BaseExporter(object):
     has_lang = False
 
     def __init__(self, project=None, language=None, url=None,
-                 translation=None):
+                 translation=None, fieldnames=None):
         if translation is not None:
             self.project = translation.subproject.project
             self.language = translation.language
@@ -72,6 +72,7 @@ class BaseExporter(object):
             self.project = project
             self.language = language
             self.url = url
+        self.fieldnames = fieldnames
         self.storage = self.get_storage()
         self.storage.setsourcelanguage(
             self.project.source_language.code
@@ -95,12 +96,12 @@ class BaseExporter(object):
         raise NotImplementedError()
 
     def add_dictionary(self, word):
-        """Adds dictionary word"""
+        """Add dictionary word"""
         unit = self.storage.UnitClass(self.string_filter(word.source))
         if self.has_lang:
             unit.settarget(self.string_filter(word.target), self.language.code)
         else:
-            unit.target = word.target
+            unit.target = self.string_filter(word.target)
         self.storage.addunit(unit)
 
     def add_units(self, translation):
@@ -151,7 +152,7 @@ class BaseExporter(object):
         return response
 
     def serialize(self):
-        """Returns storage content"""
+        """Return storage content"""
         return FileFormat.serialize(self.storage)
 
 
@@ -169,14 +170,14 @@ class PoExporter(BaseExporter):
         store.updateheader(
             add=True,
             language=self.language.code,
-            x_generator='Weblate %s' % weblate.VERSION,
-            project_id_version='%s (%s)' % (
+            x_generator='Weblate {0}'.format(weblate.VERSION),
+            project_id_version='{0} ({1})'.format(
                 self.language.name, self.project.name
             ),
             plural_forms=self.language.get_plural_form(),
-            language_team='%s <%s>' % (
+            language_team='{0} <{1}>'.format(
                 self.language.name,
-                self.url,
+                self.url
             )
         )
         return store
@@ -242,14 +243,14 @@ class MoExporter(BaseExporter):
         store.updateheader(
             add=True,
             language=self.language.code,
-            x_generator='Weblate %s' % weblate.VERSION,
-            project_id_version='%s (%s)' % (
+            x_generator='Weblate {0}'.format(weblate.VERSION),
+            project_id_version='{0} ({1})'.format(
                 self.language.name, self.project.name
             ),
             plural_forms=self.language.get_plural_form(),
-            language_team='%s <%s>' % (
+            language_team='{0} <{1}>'.format(
                 self.language.name,
-                self.url,
+                self.url
             )
         )
         return store
@@ -268,4 +269,17 @@ class CSVExporter(BaseExporter):
     has_lang = False
 
     def get_storage(self):
-        return csvfile()
+        return csvfile(fieldnames=self.fieldnames)
+
+    def string_filter(self, text):
+        """Avoid Excel interpreting text as formula.
+
+        This is really bad idea implemented in Excel as this change leads
+        to displaying additional ' in all other tools, but this seems to be
+        what most people are get used to. Hopefully these chars are not widely
+        used at first position of translatable strings, so the harm is not
+        that big.
+        """
+        if text and text[0] in ('=', '+', '-', '@', '|', '%'):
+            return "'{0}'".format(text.replace('|', '\\|'))
+        return text

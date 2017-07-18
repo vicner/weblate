@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
@@ -76,11 +76,10 @@ DB_TAGS = (
 
 
 def strip_format(msg, flags):
-    '''
-    Checks whether given string contains only format strings
+    """Check whether given string contains only format strings
     and possible punctation. These are quite often not changed
     by translators.
-    '''
+    """
     if 'python-format' in flags:
         regex = PYTHON_PRINTF_MATCH
     elif 'python-brace-format' in flags:
@@ -98,9 +97,7 @@ def strip_format(msg, flags):
 
 
 def strip_string(msg, flags):
-    '''
-    Strips (usually) not translated parts from the string.
-    '''
+    """Strip (usually) not translated parts from the string."""
     # Strip format strings
     stripped = strip_format(msg, flags)
 
@@ -127,29 +124,22 @@ def strip_string(msg, flags):
 
 
 def test_word(word):
-    '''
-    Test whether word should be ignored.
-    '''
+    """Test whether word should be ignored."""
     return len(word) <= 2 or word in SAME_BLACKLIST
 
 
 class SameCheck(TargetCheck):
-    '''
-    Check for not translated entries.
-    '''
+    """Check for not translated entries."""
     check_id = 'same'
     name = _('Unchanged translation')
     description = _('Source and translated strings are same')
     severity = 'warning'
 
     def should_ignore(self, source, unit):
-        '''
-        Check whether given unit should be ignored.
-        '''
+        """Check whether given unit should be ignored."""
         # Ignore some docbook tags
-        if unit.comment.startswith('Tag: '):
-            if unit.comment[5:] in DB_TAGS:
-                return True
+        if unit.comment.startswith('Tag: ') and unit.comment[5:] in DB_TAGS:
+            return True
 
         # Lower case source
         lower_source = source.lower()
@@ -177,23 +167,25 @@ class SameCheck(TargetCheck):
 
         return result
 
-    def check_single(self, source, target, unit):
-        translation = unit.translation
-        # Ignore this on templates
-        if translation.is_template():
-            return False
+    def should_skip(self, unit):
+        if super(SameCheck, self).should_skip(unit):
+            return True
+
+        source_language = unit.translation.subproject.project.\
+            source_language.code.split('_')[0]
+
+        # Ignore the check for source language
+        if self.is_language(unit, source_language):
+            return True
 
         # English variants will have most things not translated
         # Interlingua is also quite often similar to English
-        if (translation.subproject.project.source_language.code == 'en' and
-                self.is_language(unit, ('en', 'ia'))):
-            return False
+        elif source_language == 'en' and self.is_language(unit, ('en', 'ia')):
+            return True
 
-        # Ignore the check for source language
-        if (translation.language ==
-                translation.subproject.project.source_language):
-            return False
+        return False
 
+    def check_single(self, source, target, unit):
         # One letter things are usually labels or decimal/thousand separators
         if len(source) <= 1 and len(target) <= 1:
             return False

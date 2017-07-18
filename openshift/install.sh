@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 # Log and execute given command, identing its output for easy filtering.
@@ -51,20 +51,10 @@ source $OPENSHIFT_HOMEDIR/python/virtenv/bin/activate
 
 cd ${OPENSHIFT_REPO_DIR}
 
-# Pin Django version to 1.9 to avoid surprises when 1.10 comes out.
-# Prevent lxml 3.5 or later to be used on OpenShift because its compilation
-# needs more memory than small gears can provide.
-sed -e 's/Django[<>=]\+.*/Django>=1.9,<1.10/' \
-  -e 's/lxml[<>=]\+.*/\0,<3.5/' \
-  $OPENSHIFT_REPO_DIR/requirements.txt \
-  >/tmp/requirements.txt
-
-sh "pip install --no-cache-dir --disable-pip-version-check -U -r /tmp/requirements.txt"
-
 # Install optional dependencies without failing if some can't be installed.
 while read line; do
   if [[ $line != -r* ]] && [[ $line != \#* ]]; then
-    sh "pip install --no-cache-dir --disable-pip-version-check $line" || true
+    sh "pip install --no-cache-dir \"$line\"" || true
   fi
 done < $OPENSHIFT_REPO_DIR/requirements-optional.txt
 
@@ -88,8 +78,6 @@ sh "python ${OPENSHIFT_REPO_DIR}/openshift/manage.py setuplang"
 sh "python ${OPENSHIFT_REPO_DIR}/openshift/manage.py compilemessages"
 
 sh "python ${OPENSHIFT_REPO_DIR}/openshift/manage.py rebuild_index --all"
-
-sh "python ${OPENSHIFT_REPO_DIR}/openshift/manage.py loaddata $OPENSHIFT_REPO_DIR/weblate/fixtures/site_data"
 
 sh "python ${OPENSHIFT_REPO_DIR}/openshift/manage.py collectstatic --noinput"
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
@@ -24,27 +24,19 @@ from weblate.trans.machine.base import MachineTranslation
 
 
 class GlosbeTranslation(MachineTranslation):
-    '''
-    Glosbe machine translation support.
-    '''
+    """Glosbe machine translation support."""
     name = 'Glosbe'
 
     def convert_language(self, language):
-        '''
-        Converts language to service specific code.
-        '''
+        """Convert language to service specific code."""
         return language.replace('_', '-').split('-')[0].lower()
 
     def is_supported(self, source, language):
-        '''
-        Any language is supported.
-        '''
+        """Any language is supported."""
         return True
 
     def download_translations(self, source, language, text, unit, user):
-        '''
-        Downloads list of possible translations from a service.
-        '''
+        """Download list of possible translations from a service."""
         params = {
             'from': source,
             'dest': language,

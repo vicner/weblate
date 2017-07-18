@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from glob import glob
@@ -30,17 +30,16 @@ from django.utils.encoding import force_text
 from django.db.models import Q
 from django.utils.text import slugify
 
+from weblate.lang.models import Language
 from weblate.trans.models import SubProject, Project
 from weblate.trans.formats import FILE_FORMATS
 from weblate.trans.util import is_repo_link, path_separator
-from weblate.trans.vcs import GitRepository
+from weblate.trans.vcs import VCS_REGISTRY
 from weblate.logger import LOGGER
 
 
 class Command(BaseCommand):
-    """
-    Command for mass importing of repositories into Weblate.
-    """
+    """Command for mass importing of repositories into Weblate."""
     help = 'imports projects with more components'
 
     def add_arguments(self, parser):
@@ -147,40 +146,34 @@ class Command(BaseCommand):
         self._mask_regexp = None
 
     def format_string(self, template, match):
-        '''
-        Formats template string with match.
-        '''
+        """Format template string with match."""
         if '%s' in template:
             return template % match
         return template
 
     def get_name(self, path):
-        """
-        Returns file name from patch based on filemask.
-        """
+        """Return file name from patch based on filemask."""
         matches = self.match_regexp.match(path)
         if matches is None:
             self.logger.warning('Skipping %s', path)
-            return None
-        return matches.group('name')
+            return None, None
+        return matches.group('name'), matches.group('language')
 
     @property
     def match_regexp(self):
-        '''
-        Returns regexp for file matching
-        '''
+        """Return regexp for file matching"""
         if self.component_re is not None:
             return self.component_re
         if self._mask_regexp is None:
             match = fnmatch.translate(self.filemask)
-            match = match.replace('.*.*', '(?P<name>.*)')
+            match = match.replace('.*.*', '[[NAME_WILDCARD]]')
+            match = match.replace('.*', '(?P<language>.*)')
+            match = match.replace('[[NAME_WILDCARD]]', '(?P<name>.*)')
             self._mask_regexp = re.compile(match)
         return self._mask_regexp
 
     def checkout_tmp(self, project, repo, branch):
-        '''
-        Checkouts project to temporary location.
-        '''
+        """Checkout project to temporary location."""
         # Create temporary working dir
         workdir = tempfile.mkdtemp(dir=project.get_path())
         # Make the temporary directory readable by others
@@ -188,26 +181,22 @@ class Command(BaseCommand):
 
         # Initialize git repository
         self.logger.info('Cloning git repository...')
-        gitrepo = GitRepository.clone(repo, workdir)
+        gitrepo = VCS_REGISTRY[self.vcs].clone(repo, workdir)
         self.logger.info('Updating working copy in git repository...')
-        with gitrepo.lock():
+        with gitrepo.lock:
             gitrepo.configure_branch(branch)
 
         return workdir
 
     def get_matching_files(self, repo):
-        '''
-        Returns relative path of matched files.
-        '''
+        """Return relative path of matched files."""
         matches = glob(os.path.join(repo, self.filemask))
         return [
             path_separator(f.replace(repo, '')).strip('/') for f in matches
         ]
 
     def get_matching_subprojects(self, repo):
-        '''
-        Scan the master repository for names matching our mask
-        '''
+        """Scan the master repository for names matching our mask"""
         # Find matching files
         matches = self.get_matching_files(repo)
         self.logger.info('Found %d matching files', len(matches))
@@ -217,11 +206,22 @@ class Command(BaseCommand):
 
         # Parse subproject names out of them
         names = set()
+        langs = set()
         for match in matches:
-            name = self.get_name(match)
+            name, lang = self.get_name(match)
             if name:
                 names.add(name)
+                langs.add(lang)
         self.logger.info('Found %d subprojects', len(names))
+        self.logger.info('Found %d languages', len(langs))
+
+        # Do some basic sanity check on languages
+        if Language.objects.filter(code__in=langs).count() == 0:
+            raise CommandError(
+                'None of matched languages exists, maybe you have '
+                'mixed * and ** in the mask?'
+            )
+
         return sorted(names)
 
     def find_usable_slug(self, name, slug_len, project):
@@ -240,7 +240,7 @@ class Command(BaseCommand):
         )
 
     def parse_options(self, options):
-        """Parses parameters"""
+        """Parse parameters"""
         self.filemask = options['filemask']
         self.vcs = options['vcs']
         self.file_format = options['file_format']
@@ -262,28 +262,35 @@ class Command(BaseCommand):
                         options['component_regexp'], error
                     )
                 )
-            if 'name' not in self.component_re.groupindex:
+            if ('name' not in self.component_re.groupindex or
+                    'language' not in self.component_re.groupindex):
                 raise CommandError(
                     'Component regular expression lacks named group "name"'
+                    ' and/or "language"'
                 )
 
         # Is file format supported?
         if self.file_format not in FILE_FORMATS:
             raise CommandError(
-                'Invalid file format: %s' % options['file_format']
+                'Invalid file format: {0}'.format(options['file_format'])
+            )
+
+        # Is vcs supported?
+        if self.vcs not in VCS_REGISTRY:
+            raise CommandError(
+                'Invalid vcs: {0}'.format(options['vcs'])
             )
 
         # Do we have correct mask?
-        if '**' not in self.filemask:
+        if ('**' not in self.filemask
+                or '*' not in self.filemask.replace('**', '')):
             raise CommandError(
                 'You need to specify double wildcard '
                 'for subproject part of the match!'
             )
 
     def handle(self, *args, **options):
-        '''
-        Automatic import of project.
-        '''
+        """Automatic import of project."""
         # Read params
         repo = options['repo']
         branch = options['branch']
@@ -294,9 +301,16 @@ class Command(BaseCommand):
             project = Project.objects.get(slug=options['project'])
         except Project.DoesNotExist:
             raise CommandError(
-                'Project %s does not exist, you need to create it first!' %
-                options['project']
+                'Project {0} not found, you have to create it first!'.format(
+                    options['project']
+                )
             )
+
+        # We need to limit slug length to avoid problems with MySQL
+        # silent truncation
+        # pylint: disable=W0212
+        slug_len = SubProject._meta.get_field('slug').max_length
+        name_len = SubProject._meta.get_field('name').max_length
 
         if is_repo_link(repo):
             sharedrepo = repo
@@ -304,23 +318,22 @@ class Command(BaseCommand):
                 sub_project = SubProject.objects.get_linked(repo)
             except SubProject.DoesNotExist:
                 raise CommandError(
-                    'SubProject %s does not exist, '
-                    'you need to create it first!' % repo
+                    'SubProject {0} not found, '
+                    'you need to create it first!'.format(
+                        repo
+                    )
                 )
             matches = self.get_matching_subprojects(
                 sub_project.get_path(),
             )
         else:
-            matches, sharedrepo = self.import_initial(project, repo, branch)
-
-        # We need to limit slug length to avoid problems with MySQL
-        # silent truncation
-        # pylint: disable=W0212
-        slug_len = SubProject._meta.get_field('slug').max_length
+            matches, sharedrepo = self.import_initial(
+                project, repo, branch, slug_len, name_len
+            )
 
         # Create remaining subprojects sharing git repository
         for match in matches:
-            name = self.format_string(self.name_template, match)
+            name = self.format_string(self.name_template, match)[:name_len]
             template = self.format_string(self.base_file_template, match)
             slug = slugify(name)[:slug_len]
             subprojects = SubProject.objects.filter(
@@ -368,10 +381,8 @@ class Command(BaseCommand):
                 result[key] = value
         return result
 
-    def import_initial(self, project, repo, branch):
-        '''
-        Import the first repository of a project
-        '''
+    def import_initial(self, project, repo, branch, slug_len, name_len):
+        """Import the first repository of a project"""
         # Checkout git to temporary dir
         workdir = self.checkout_tmp(project, repo, branch)
         matches = self.get_matching_subprojects(workdir)
@@ -386,9 +397,9 @@ class Command(BaseCommand):
             matches.remove(self.main_component)
         else:
             match = matches.pop()
-        name = self.format_string(self.name_template, match)
+        name = self.format_string(self.name_template, match)[:name_len]
         template = self.format_string(self.base_file_template, match)
-        slug = slugify(name)
+        slug = slugify(name)[:slug_len]
 
         if SubProject.objects.filter(project=project, slug=slug).exists():
             self.logger.warning(
@@ -397,7 +408,7 @@ class Command(BaseCommand):
                 name
             )
             shutil.rmtree(workdir)
-            return matches, 'weblate://%s/%s' % (project.slug, slug)
+            return matches, 'weblate://{0}/{1}'.format(project.slug, slug)
 
         self.logger.info('Creating component %s as main one', name)
 
@@ -418,6 +429,6 @@ class Command(BaseCommand):
             **self.get_project_attribs()
         )
 
-        sharedrepo = 'weblate://%s/%s' % (project.slug, slug)
+        sharedrepo = 'weblate://{0}/{1}'.format(project.slug, slug)
 
         return matches, sharedrepo

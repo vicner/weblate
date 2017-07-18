@@ -18,7 +18,7 @@ To upgrade database structure, you should run:
 
 .. code-block:: sh
 
-    ./manage.py migrate
+    ./manage.py migrate --noinput
 
 To collect new static files, run:
 
@@ -38,6 +38,13 @@ To upgrade default set of language definitions (optional), run:
 
     ./manage.py setuplang
 
+If you are running version from Git, you should also regenerate locale files
+every time you are upgrading. You can do this by invoking:
+
+.. code-block:: sh
+
+    ./manage.py compilemessages
+
 .. versionchanged:: 1.2
 
     Since version 1.2 the migration is done using South module, to upgrade to 1.2,
@@ -52,6 +59,19 @@ To upgrade default set of language definitions (optional), run:
 
     Since version 2.3, Weblate supports only Django native migrations, South is
     no longer supported, please check :ref:`django-17` for more information.
+
+.. versionchanged:: 2.11
+
+    Since version 2.11, there is reduced support for migrating from
+    older not released versions. In case you hit problem in this, please 
+    upgrade first to closest released version and then continue in 
+    upgrading to latest one.
+
+.. versionchanged:: 2.12
+
+    Since version 2.12 upgrade is not supported for versions prior to 2.2. In
+    case you are upgrading from such old version, please upgrade to 2.2 first
+    and then continue in upgrading to current release.
 
 .. _version-specific-instructions:
 
@@ -139,7 +159,6 @@ correct values).
 The migration of database structure to 1.5 might take quite long, it is
 recommended to put your site offline, while the migration is going on.
 
-
 .. note::
 
     If you have update in same directory, stale :file:`*.pyc` files might be
@@ -190,13 +209,11 @@ correct values).
 
 This upgrade also requires you to upgrade python-social-auth from 0.1.x to
 0.2.x series, what will most likely to need to fake one of their migrations
-(see `Upgrading PSA with South`_ for more information):
+(see :doc:`Upgrading PSA with South <psa:configuration/django>` for more information):
 
 .. code-block:: sh
 
     ./manage.py migrate --fake default
-
-.. _Upgrading PSA with South: http://psa.matiasaguirre.net/docs/installing.html#django-with-south
 
 .. seealso::
 
@@ -363,6 +380,125 @@ Notable configuration or dependencies changes:
 
 .. seealso:: :ref:`generic-upgrade-instructions`
 
+Upgrade from 2.10 to 2.11
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Follow generic upgrade instructions, there is no special change.
+
+Notable configuration or dependencies changes:
+
+* There is new recommended value for ``SOCIAL_AUTH_SLUGIFY_FUNCTION``.
+* There is change in ``MIDDLEWARE_CLASSES`` setting.
+* The ``python-social-auth`` module has been deprecated upstream, Weblate
+  now uses ``social-auth-core`` and ``social-auth-app-django`` instead. You also
+  have to adjust :file:`settings.py` as several modules have been moved from
+  ``social`` to either ``social_core`` or ``social_django``. Please consult
+  :file:`settings_example.py` for correct values.
+
+.. warning::
+
+    If you were using python-social-auth 0.2.19 or older with Weblate 2.10, you
+    should first upgrade Weblate 2.10 to python-social-auth 0.2.21 and then
+    perform upgrade to Weblate 2.11. Otherwise you end up with non applicable
+    database migrations.
+
+    See `Migrating from python-social-auth to split social <https://github.com/omab/python-social-auth/blob/master/MIGRATING_TO_SOCIAL.md#migrations>`_
+    for more information.
+
+
+.. seealso:: :ref:`generic-upgrade-instructions`
+
+Upgrade from 2.11 to 2.12
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Follow generic upgrade instructions, there is no special change.
+
+Notable configuration or dependencies changes:
+
+* The database migration will take quite long on this update as all
+  translation units stored in database have to be updated. Expect about 1 hour
+  of migration for 500000 translation units (depends on hardware and database).
+* There is new dependency on ``django-appconf`` and ``siphashc3``.
+* The setting for ``UNAUTHENTICATED_USER`` for ``REST_FRAMEWORK`` has been
+  changed to properly handle anonymous user permissions in REST API.
+* The ``INSTALLED_APPS`` now should include ``weblate.screenshots``.
+* There is new optional dependency on tesserocr, see :ref:`requirements`.
+
+.. seealso:: :ref:`generic-upgrade-instructions`
+
+Upgrade from 2.12 to 2.13
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Follow generic upgrade instructions, there is no special change.
+
+Notable configuration or dependencies changes:
+
+* There is new quality check: :ref:`check-translated`.
+* The ``INSTALLED_APPS`` now should include ``weblate.permissions``.
+* The per project ALCs are now implemented using Group ACL, you might need to
+  adjust your setup if you were using Group ACLs before, see :ref:`groupacl`
+  for more information about the setup.
+* There are several new permissions which should be assigned to default groups,
+  you should run ``./manage.py setupgroups`` to update them. Alternatively you
+  might want to add following permissions where applicable (see :ref:`extra-privs`
+  for their default setup):
+
+  * Can access VCS repository
+  * Can access project
+
+.. note::
+
+    If you have update in same directory, stale :file:`*.pyc` files might be
+    left around and cause various import errors. To recover from this, delete
+    all of them in Weblate's directory, for example by
+    ``find . -name '*.pyc' -delete``.
+
+.. seealso:: :ref:`generic-upgrade-instructions`
+
+Upgrade from 2.13 to 2.14
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Follow generic upgrade instructions, there is no special change.
+
+Notable configuration or dependencies changes:
+
+* There is new middleware ``weblate.middleware.SecurityMiddleware`` in the
+  default configuration, see :ref:`csp` for more details.
+* Weblate now uses Django password validation, it's controlled by
+  ``AUTH_PASSWORD_VALIDATORS`` setting.
+* Weblate now customizes disconnect pipeline for Python Social Auth,
+  the ``SOCIAL_AUTH_DISCONNECT_PIPELINE`` setting is now needed.
+* There is change in ``SOCIAL_AUTH_PIPELINE`` default settings.
+* All pending email verifications will be invalid due to validation change.
+* The authentication attempts are now rate limited, see :ref:`rate-limit` for
+  more details.
+
+.. seealso:: :ref:`generic-upgrade-instructions`
+
+Upgrade from 2.14 to 2.15
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Follow generic upgrade instructions, there is no special change.
+
+Notable configuration or dependencies changes:
+
+* The ``AUTHENTICATION_BACKENDS`` setting should be changed to include
+  ``social_core.backends.email.EmailAuth`` as shipped by Python Social Auth.
+  Weblate no longer uses own email auth backend.
+
+.. seealso:: :ref:`generic-upgrade-instructions`
+
+Upgrade from 2.15 to 2.16
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Follow generic upgrade instructions, there is no special change.
+
+Notable configuration or dependencies changes:
+
+* There is change in ``SOCIAL_AUTH_PIPELINE`` default settings.
+
+.. seealso:: :ref:`generic-upgrade-instructions`
+
 .. _django-17:
 
 Upgrading to Django 1.7
@@ -391,6 +527,20 @@ the initial setup, you might need to fake some of the migrations though:
 .. code-block:: sh
 
     ./manage.py migrate --fake-initial
+
+Upgrading from Python 2.x to 3.x
+--------------------------------
+
+The upgrade from Python 2.x to 3.x, should work without major problems. Take
+care about some changed module names when installing dependencies (eg. pydns
+vs. py3dns).
+
+The Whoosh index has to be rebuilt as it's encoding depends on Python version,
+you can do that using following command:
+
+.. code-block:: sh
+
+    ./manage.py rebuild_index --clean --all
 
 .. _pootle-migration:
 

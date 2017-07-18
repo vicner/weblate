@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,12 +15,11 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from django.conf.urls import include, url
 from django.conf import settings
-from django.contrib import admin
 from django.views.generic import RedirectView
 import django.contrib.sitemaps.views
 import django.views.i18n
@@ -33,6 +32,7 @@ from weblate.trans.feeds import (
 from weblate.trans.views.changes import ChangesView, ChangesCSVView
 import weblate.accounts.views
 import weblate.lang.views
+import weblate.screenshots.views
 import weblate.trans.admin_views
 import weblate.trans.views.acl
 import weblate.trans.views.api
@@ -51,6 +51,7 @@ import weblate.trans.views.widgets
 from weblate.sitemaps import SITEMAPS
 import weblate.accounts.urls
 import weblate.api.urls
+import weblate.admin
 
 # URL regexp for language code
 LANGUAGE = r'(?P<lang>[^/]+)'
@@ -71,17 +72,13 @@ PROJECT_LANG = PROJECT + LANGUAGE + '/'
 WIDGET = r'(?P<widget>[^/-]+)-(?P<color>[^/-]+)'
 
 # Widget extension match
-EXTENSION = r'(?P<extension>(png|svg))'
-
-admin.autodiscover()
+EXTENSION = r'(?P<extension>(png|svg|bin))'
 
 handler403 = weblate.trans.views.basic.denied
 
 handler404 = weblate.trans.views.basic.not_found
 
 handler500 = weblate.trans.views.basic.server_error
-
-admin.site.index_template = 'admin/custom-index.html'
 
 urlpatterns = [
     url(
@@ -129,12 +126,12 @@ urlpatterns = [
         name='upload_dictionary',
     ),
     url(
-        r'^delete-dictionaries/' + PROJECT_LANG + '$',
+        r'^delete-dictionaries/' + PROJECT_LANG + '(?P<pk>[0-9]+)/$',
         weblate.trans.views.dictionary.delete_dictionary,
         name='delete_dictionary',
     ),
     url(
-        r'^edit-dictionaries/' + PROJECT_LANG + '$',
+        r'^edit-dictionaries/' + PROJECT_LANG + '(?P<pk>[0-9]+)/$',
         weblate.trans.views.dictionary.edit_dictionary,
         name='edit_dictionary',
     ),
@@ -180,11 +177,6 @@ urlpatterns = [
         weblate.trans.views.source.edit_check_flags,
         name='edit_check_flags'
     ),
-    url(
-        r'^source/(?P<pk>[0-9]+)/screenshot/$',
-        weblate.trans.views.source.upload_screenshot,
-        name='upload_screenshot'
-    ),
 
     # Translation pages
     url(
@@ -228,6 +220,16 @@ urlpatterns = [
         name='auto_translation',
     ),
     url(
+        r'^replace/' + PROJECT + '$',
+        weblate.trans.views.edit.search_replace,
+        name='replace',
+    ),
+    url(
+        r'^replace/' + SUBPROJECT + '$',
+        weblate.trans.views.edit.search_replace,
+        name='replace',
+    ),
+    url(
         r'^replace/' + TRANSLATION + '$',
         weblate.trans.views.edit.search_replace,
         name='replace',
@@ -248,24 +250,24 @@ urlpatterns = [
         name='new-language',
     ),
     url(
-        r'^add-user/' + PROJECT + '$',
+        r'^access/' + PROJECT + '$',
+        weblate.trans.views.acl.manage_access,
+        name='manage-access',
+    ),
+    url(
+        r'^access/' + PROJECT + 'add/$',
         weblate.trans.views.acl.add_user,
         name='add-user',
     ),
     url(
-        r'^delete-user/' + PROJECT + '$',
+        r'^access/' + PROJECT + 'remove/$',
         weblate.trans.views.acl.delete_user,
         name='delete-user',
     ),
     url(
-        r'^make-owner/' + PROJECT + '$',
-        weblate.trans.views.acl.make_owner,
-        name='make-owner',
-    ),
-    url(
-        r'^revoke-owner/' + PROJECT + '$',
-        weblate.trans.views.acl.revoke_owner,
-        name='revoke-owner',
+        r'^access/' + PROJECT + 'set/$',
+        weblate.trans.views.acl.set_groups,
+        name='set-groups',
     ),
 
     # Monthly activity
@@ -459,6 +461,48 @@ urlpatterns = [
         r'^unlock/' + TRANSLATION + '$',
         weblate.trans.views.lock.unlock_translation,
         name='unlock_translation',
+    ),
+
+    # Screenshots
+    url(
+        r'^screenshots/' + SUBPROJECT + '$',
+        weblate.screenshots.views.ScreenshotList.as_view(),
+        name='screenshots',
+    ),
+    url(
+        r'^screenshot/(?P<pk>[0-9]+)/$',
+        weblate.screenshots.views.ScreenshotDetail.as_view(),
+        name='screenshot',
+    ),
+    url(
+        r'^screenshot/(?P<pk>[0-9]+)/delete/$',
+        weblate.screenshots.views.delete_screenshot,
+        name='screenshot-delete',
+    ),
+    url(
+        r'^screenshot/(?P<pk>[0-9]+)/remove/$',
+        weblate.screenshots.views.remove_source,
+        name='screenshot-remove-source',
+    ),
+    url(
+        r'^js/screenshot/(?P<pk>[0-9]+)/get/$',
+        weblate.screenshots.views.get_sources,
+        name='screenshot-js-get',
+    ),
+    url(
+        r'^js/screenshot/(?P<pk>[0-9]+)/search/$',
+        weblate.screenshots.views.search_source,
+        name='screenshot-js-search',
+    ),
+    url(
+        r'^js/screenshot/(?P<pk>[0-9]+)/ocr/$',
+        weblate.screenshots.views.ocr_search,
+        name='screenshot-js-ocr',
+    ),
+    url(
+        r'^js/screenshot/(?P<pk>[0-9]+)/add/$',
+        weblate.screenshots.views.add_source,
+        name='screenshot-js-add',
     ),
 
     # Languages browsing
@@ -669,6 +713,11 @@ urlpatterns = [
         name='js-unit-changes',
     ),
     url(
+        r'^js/translations/(?P<unit_id>[0-9]+)/$',
+        weblate.trans.views.js.get_unit_translations,
+        name='js-unit-translations',
+    ),
+    url(
         r'^js/detail/' + SUBPROJECT + '(?P<checksum>[^/]+)/$',
         weblate.trans.views.js.get_detail,
         name='js-detail',
@@ -716,7 +765,7 @@ urlpatterns = [
         weblate.trans.admin_views.performance,
         name='admin-performance'
     ),
-    url(r'^admin/', include(admin.site.urls)),
+    url(r'^admin/', include(weblate.admin.SITE.urls)),
 
     # Auth
     url(r'^accounts/', include(weblate.accounts.urls)),
@@ -736,14 +785,13 @@ urlpatterns = [
         weblate.accounts.views.user_page,
         name='user_page',
     ),
+    url(
+        r'^user/(?P<user>[^/]+)/suggestions/$',
+        weblate.accounts.views.SuggestionView.as_view(),
+        name='user_suggestions',
+    ),
 
     # Avatars
-    # Compatibility URL, remove for 2.6
-    url(
-        r'^avatar/(?P<user>[^/]+)/(?P<size>(32|128))/$',
-        weblate.accounts.views.user_avatar,
-        name='user_avatar_compat',
-    ),
     url(
         r'^avatar/(?P<size>(32|128))/(?P<user>[^/]+)\.png$',
         weblate.accounts.views.user_avatar,
@@ -846,6 +894,11 @@ urlpatterns = [
             query_string=True
         )
     ),
+    url(
+        r'^js/glossary/(?P<unit_id>[0-9]+)/$',
+        weblate.trans.views.dictionary.add_dictionary,
+        name='js-add-glossary',
+    ),
 
     # Old activity charts
     url(
@@ -883,6 +936,21 @@ urlpatterns = [
         weblate.trans.views.basic.search,
         name="search"
     ),
+    url(
+        r'^search/' + PROJECT + '$',
+        weblate.trans.views.basic.search,
+        name="search"
+    ),
+    url(
+        r'^search/' + SUBPROJECT + '$',
+        weblate.trans.views.basic.search,
+        name="search"
+    ),
+    url(
+        r'^languages/' + LANGUAGE + '/' + PROJECT + 'search/$',
+        weblate.trans.views.basic.search,
+        name="search"
+    ),
 
     # Health check
     url(
@@ -912,11 +980,46 @@ if 'weblate.gitexport' in settings.INSTALLED_APPS:
     # pylint: disable=C0413
     import weblate.gitexport.views
     urlpatterns += [
+        # Redirect clone from the Weblate project URL
+        url(
+            r'^projects/' + SUBPROJECT +
+            '(?P<path>(info/|git-upload-pack)[a-z0-9_/-]*)$',
+            RedirectView.as_view(
+                url='/git/%(project)s/%(subproject)s/%(path)s',
+                permanent=True,
+                query_string=True
+            )
+        ),
+        url(
+            r'^projects/' + SUBPROJECT[:-1] +
+            r'\.git/' + '(?P<path>(info/|git-upload-pack)[a-z0-9_/-]*)$',
+            RedirectView.as_view(
+                url='/git/%(project)s/%(subproject)s/%(path)s',
+                permanent=True,
+                query_string=True
+            )
+        ),
+        # Redirect clone in case user adds .git to the path
+        url(
+            r'^git/' + SUBPROJECT[:-1] + r'\.git/' + '(?P<path>[a-z0-9_/-]*)$',
+            RedirectView.as_view(
+                url='/git/%(project)s/%(subproject)s/%(path)s',
+                permanent=True,
+                query_string=True
+            )
+        ),
         url(
             r'^git/' + SUBPROJECT + '(?P<path>[a-z0-9_/-]*)$',
             weblate.gitexport.views.git_export,
             name='git-export',
         ),
+    ]
+
+if 'weblate.legal' in settings.INSTALLED_APPS:
+    # pylint: disable=C0413
+    import weblate.legal.views
+    urlpatterns += [
+        url(r'^legal/', include('weblate.legal.urls', namespace='legal')),
     ]
 
 if settings.DEBUG:
@@ -926,4 +1029,11 @@ if settings.DEBUG:
             django.views.static.serve,
             {'document_root': settings.MEDIA_ROOT}
         ),
+    ]
+
+if settings.DEBUG and 'debug_toolbar' in settings.INSTALLED_APPS:
+    # pylint: disable=C0413
+    import debug_toolbar
+    urlpatterns += [
+        url(r'^__debug__/', include(debug_toolbar.urls)),
     ]

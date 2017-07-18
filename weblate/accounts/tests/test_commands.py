@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,16 +15,14 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""
-Tests for user handling.
-"""
+"""Test for user handling."""
 
 import tempfile
 from django.test import TestCase
-from django.contrib.auth.models import User, Group
+from django.contrib.auth.models import User
 from django.contrib.sites.models import Site
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -35,9 +33,7 @@ from weblate.accounts.models import Profile
 
 
 class CommandTest(TestCase):
-    '''
-    Tests for management commands.
-    '''
+    """Test for management commands."""
     def test_createadmin(self):
         call_command('createadmin')
         user = User.objects.get(username='admin')
@@ -76,16 +72,6 @@ class CommandTest(TestCase):
         call_command('createadmin', update=True, password='123456')
         user = User.objects.get(username='admin')
         self.assertTrue(user.check_password('123456'))
-
-    def test_setupgroups(self):
-        call_command('setupgroups')
-        group = Group.objects.get(name='Users')
-        self.assertTrue(
-            group.permissions.filter(
-                codename='save_translation'
-            ).exists()
-        )
-        call_command('setupgroups', move=True)
 
     def test_importusers(self):
         # First import

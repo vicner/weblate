@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,29 +15,28 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
+from __future__ import unicode_literals
 
 from django.db import models
-from django.contrib.auth.models import User
 from django.db.models import Count, Q
+from django.contrib.auth.models import User
+from django.utils import timezone
 from django.utils.encoding import python_2_unicode_compatible, force_text
 from django.utils.translation import ugettext as _, ugettext_lazy
-from django.utils import timezone
 
 import six.moves
 
+from weblate.trans.mixins import UserDisplayMixin
 from weblate.trans.models.project import Project
-from weblate.accounts.avatar import get_user_display
 
 
 class ChangeManager(models.Manager):
     # pylint: disable=W0232
 
     def content(self, prefetch=False):
-        '''
-        Returns queryset with content changes.
-        '''
+        """Return queryset with content changes."""
         base = self
         if prefetch:
             base = base.prefetch()
@@ -46,11 +45,11 @@ class ChangeManager(models.Manager):
             user__isnull=False,
         )
 
-    def count_stats(self, days, step, dtstart, base):
-        '''
-        Counts number of changes in given dataset and period grouped by
+    @staticmethod
+    def count_stats(days, step, dtstart, base):
+        """Count number of changes in given dataset and period grouped by
         step days.
-        '''
+        """
 
         # Count number of changes
         result = []
@@ -74,9 +73,7 @@ class ChangeManager(models.Manager):
     def base_stats(self, days, step,
                    project=None, subproject=None, translation=None,
                    language=None, user=None):
-        '''
-        Core of daily/weekly/monthly stats calculation.
-        '''
+        """Core of daily/weekly/monthly stats calculation."""
 
         # Get range (actually start)
         dtstart = timezone.now() - timezone.timedelta(days=days + 1)
@@ -103,10 +100,9 @@ class ChangeManager(models.Manager):
         return self.count_stats(days, step, dtstart, base)
 
     def prefetch(self):
-        '''
-        Fetches related fields in a big chungs to avoid loading them
+        """Fetch related fields in a big chungs to avoid loading them
         individually.
-        '''
+        """
         return self.prefetch_related(
             'user', 'translation', 'subproject', 'unit', 'dictionary',
             'translation__language',
@@ -136,10 +132,9 @@ class ChangeManager(models.Manager):
         )
 
     def last_changes(self, user):
-        '''
-        Prefilters Changes by ACL for users and fetches related fields
+        """Prefilter Changes by ACL for users and fetches related fields
         for last changes display.
-        '''
+        """
         acl_projects = Project.objects.get_acl_ids(user)
         return self.prefetch().filter(
             Q(subproject__project_id__in=acl_projects) |
@@ -161,13 +156,13 @@ class ChangeManager(models.Manager):
 
     def create(self, user=None, **kwargs):
         """Wrapper to avoid using anonymous user as change owner"""
-        if user is not None and not user.is_authenticated():
+        if user is not None and not user.is_authenticated:
             user = None
         return super(ChangeManager, self).create(user=user, **kwargs)
 
 
 @python_2_unicode_compatible
-class Change(models.Model):
+class Change(models.Model, UserDisplayMixin):
     ACTION_UPDATE = 0
     ACTION_COMPLETE = 1
     ACTION_CHANGE = 2
@@ -215,7 +210,7 @@ class Change(models.Model):
         (ACTION_LOCK, ugettext_lazy('Component locked')),
         (ACTION_UNLOCK, ugettext_lazy('Component unlocked')),
         (ACTION_DUPLICATE_STRING, ugettext_lazy('Detected duplicate string')),
-        (ACTION_COMMIT, ugettext_lazy('Commited changes')),
+        (ACTION_COMMIT, ugettext_lazy('Committed changes')),
         (ACTION_PUSH, ugettext_lazy('Pushed changes')),
         (ACTION_RESET, ugettext_lazy('Reset repository')),
         (ACTION_MERGE, ugettext_lazy('Merged repository')),
@@ -244,6 +239,7 @@ class Change(models.Model):
         ACTION_ACCEPT,
         ACTION_REVERT,
         ACTION_CHANGE,
+        ACTION_UPLOAD,
         ACTION_NEW,
         ACTION_REPLACE,
     ))
@@ -284,6 +280,7 @@ class Change(models.Model):
         default=ACTION_CHANGE
     )
     target = models.TextField(default='', blank=True)
+    old = models.TextField(default='', blank=True)
 
     objects = ChangeManager()
 
@@ -305,21 +302,14 @@ class Change(models.Model):
     def is_merge_failure(self):
         return self.action in self.ACTIONS_MERGE_FAILURE
 
-    def get_user_display(self, icon=True):
-        return get_user_display(self.user, icon, link=True)
-
     def get_absolute_url(self):
-        '''
-        Returns link either to unit or translation.
-        '''
+        """Return link either to unit or translation."""
         if self.unit is not None:
             return self.unit.get_absolute_url()
         return self.get_translation_url()
 
     def get_translation_url(self):
-        '''
-        Returns URL for translation.
-        '''
+        """Return URL for translation."""
         if self.translation is not None:
             return self.translation.get_absolute_url()
         elif self.subproject is not None:
@@ -329,15 +319,13 @@ class Change(models.Model):
         return None
 
     def get_translation_display(self):
-        '''
-        Returns display name for translation.
-        '''
+        """Return display name for translation."""
         if self.translation is not None:
             return force_text(self.translation)
         elif self.subproject is not None:
             return force_text(self.subproject)
         elif self.dictionary is not None:
-            return '%s/%s' % (
+            return '{0}/{1}'.format(
                 self.dictionary.project,
                 self.dictionary.language
             )
@@ -349,6 +337,10 @@ class Change(models.Model):
             self.target and
             self.action in self.ACTIONS_REVERTABLE
         )
+
+    def show_content(self):
+        """Whether to show content as translation."""
+        return self.action == self.ACTION_SUGGESTION
 
     def save(self, *args, **kwargs):
         if self.unit:

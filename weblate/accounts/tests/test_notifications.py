@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,19 +15,18 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 """
 Tests for user handling.
 """
 
-from django.core.urlresolvers import reverse
 from django.contrib.auth.models import User
 from django.core import mail
 
-from weblate.accounts.models import (
-    Profile,
+from weblate.accounts.models import Profile
+from weblate.accounts.notifications import (
     notify_merge_failure,
     notify_parse_error,
     notify_new_string,
@@ -36,13 +35,14 @@ from weblate.accounts.models import (
     notify_new_translation,
     notify_new_contributor,
     notify_new_language,
+    notify_account_activity,
 )
-from weblate.trans.tests.test_views import ViewTestCase
+from weblate.trans.tests.test_views import FixtureTestCase
 from weblate.trans.models import Suggestion, Comment
 from weblate.lang.models import Language
 
 
-class NotificationTest(ViewTestCase):
+class NotificationTest(FixtureTestCase):
     def setUp(self):
         super(NotificationTest, self).setUp()
         self.user.email = 'noreply@weblate.org'
@@ -84,7 +84,7 @@ class NotificationTest(ViewTestCase):
         )
 
         # Add project owner
-        self.subproject.project.owners.add(self.second_user())
+        self.subproject.project.add_user(self.second_user(), '@Administration')
         notify_merge_failure(
             self.subproject,
             'Failed merge',
@@ -110,7 +110,7 @@ class NotificationTest(ViewTestCase):
         )
 
         # Add project owner
-        self.subproject.project.owners.add(self.second_user())
+        self.subproject.project.add_user(self.second_user(), '@Administration')
         notify_parse_error(
             self.subproject,
             self.get_translation(),
@@ -165,7 +165,7 @@ class NotificationTest(ViewTestCase):
         )
 
         # Add project owner
-        self.subproject.project.owners.add(second_user)
+        self.subproject.project.add_user(second_user, '@Administration')
         notify_new_language(
             self.subproject,
             Language.objects.filter(code='de'),
@@ -194,7 +194,7 @@ class NotificationTest(ViewTestCase):
         notify_new_suggestion(
             unit,
             Suggestion.objects.create(
-                contentsum=unit.contentsum,
+                content_hash=unit.content_hash,
                 project=unit.translation.subproject.project,
                 language=unit.translation.language,
                 target='Foo'
@@ -214,7 +214,7 @@ class NotificationTest(ViewTestCase):
         notify_new_comment(
             unit,
             Comment.objects.create(
-                contentsum=unit.contentsum,
+                content_hash=unit.content_hash,
                 project=unit.translation.subproject.project,
                 language=unit.translation.language,
                 comment='Foo'
@@ -235,7 +235,7 @@ class NotificationTest(ViewTestCase):
         notify_new_comment(
             unit,
             Comment.objects.create(
-                contentsum=unit.contentsum,
+                content_hash=unit.content_hash,
                 project=unit.translation.subproject.project,
                 language=None,
                 comment='Foo'
@@ -255,25 +255,11 @@ class NotificationTest(ViewTestCase):
             '[Weblate] New comment in Test/Test'
         )
 
-
-class RemoveAcccountTest(ViewTestCase):
-    def test_removal(self):
-        response = self.client.post(
-            reverse('remove')
+    def test_notify_account(self):
+        request = self.get_request('/')
+        notify_account_activity(request.user, request, 'password')
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(
+            mail.outbox[0].subject,
+            '[Weblate] Activity on your account at Weblate'
         )
-        self.assertRedirects(response, reverse('home'))
-        self.assertFalse(
-            User.objects.filter(username='testuser').exists()
-        )
-
-    def test_removal_change(self):
-        self.edit_unit(
-            'Hello, world!\n',
-            'Nazdar svete!\n'
-        )
-        # We should have some change to commit
-        self.assertTrue(self.subproject.repo_needs_commit())
-        # Remove account
-        self.test_removal()
-        # Changes should be committed
-        self.assertFalse(self.subproject.repo_needs_commit())

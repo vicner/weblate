@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,17 +15,17 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 import os.path
 
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, render
 from django.http import HttpResponse, Http404
 
-from weblate import appsettings
 from weblate.billing.models import Invoice, Billing
 
 
@@ -41,7 +41,7 @@ def download_invoice(request, pk):
         raise PermissionDenied('Not an owner!')
 
     filename = invoice.filename
-    path = os.path.join(appsettings.INVOICE_PATH, filename)
+    path = os.path.join(settings.INVOICE_PATH, filename)
 
     if not os.path.exists(path):
         raise Http404('File {0} does not exist!'.format(filename))

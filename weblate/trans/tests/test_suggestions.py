@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,13 +15,14 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 """
 Tests for sugestion views.
 """
 
+from django.conf import settings
 from django.core.urlresolvers import reverse
 
 from weblate.trans.models import Suggestion
@@ -52,17 +53,17 @@ class SuggestionsTest(ViewTestCase):
             suggest='yes'
         )
         # We should stay on same message
-        self.assertRedirectsOffset(response, translate_url, 0)
+        self.assert_redirects_offset(response, translate_url, 0)
 
         # Add first suggestion
         response = self.add_suggestion_1()
         # We should get to second message
-        self.assertRedirectsOffset(response, translate_url, 1)
+        self.assert_redirects_offset(response, translate_url, 1)
 
         # Add second suggestion
         response = self.add_suggestion_2()
         # We should get to second message
-        self.assertRedirectsOffset(response, translate_url, 1)
+        self.assert_redirects_offset(response, translate_url, 1)
 
         # Reload from database
         unit = self.get_unit()
@@ -71,13 +72,40 @@ class SuggestionsTest(ViewTestCase):
         )
         # Check number of suggestions
         self.assertEqual(translation.have_suggestion, 1)
-        self.assertBackend(0)
+        self.assert_backend(0)
 
         # Unit should not be translated
         self.assertEqual(len(unit.checks()), 0)
         self.assertFalse(unit.translated)
         self.assertFalse(unit.fuzzy)
         self.assertEqual(len(self.get_unit().suggestions()), 2)
+
+    def test_add_same(self):
+        translate_url = reverse('translate', kwargs=self.kw_translation)
+        # Add first suggestion
+        response = self.add_suggestion_1()
+        # We should get to second message
+        self.assert_redirects_offset(response, translate_url, 1)
+        # Add first suggestion
+        response = self.add_suggestion_1()
+        # We should stay on same message
+        self.assert_redirects_offset(response, translate_url, 0)
+
+        # Reload from database
+        unit = self.get_unit()
+        translation = self.subproject.translation_set.get(
+            language_code='cs'
+        )
+
+        # Check number of suggestions
+        self.assertEqual(translation.have_suggestion, 1)
+        self.assert_backend(0)
+
+        # Unit should not be translated
+        self.assertEqual(len(unit.checks()), 0)
+        self.assertFalse(unit.translated)
+        self.assertFalse(unit.fuzzy)
+        self.assertEqual(len(self.get_unit().suggestions()), 1)
 
     def test_delete(self):
         translate_url = reverse('translate', kwargs=self.kw_translation)
@@ -86,7 +114,9 @@ class SuggestionsTest(ViewTestCase):
         self.add_suggestion_2()
 
         # Get ids of created suggestions
-        suggestions = [sug.pk for sug in self.get_unit().suggestions()]
+        suggestions = self.get_unit().suggestions().values_list(
+            'pk', flat=True
+        )
         self.assertEqual(len(suggestions), 2)
 
         # Delete one of suggestions
@@ -95,22 +125,13 @@ class SuggestionsTest(ViewTestCase):
             '',
             delete=suggestions[0],
         )
-        self.assertRedirectsOffset(response, translate_url, 0)
+        self.assert_redirects_offset(response, translate_url, 0)
 
-        # Reload from database
-        unit = self.get_unit()
-        translation = self.subproject.translation_set.get(
-            language_code='cs'
+        # Ensure we have just one
+        suggestions = self.get_unit().suggestions().values_list(
+            'pk', flat=True
         )
-        # Check number of suggestions
-        self.assertEqual(translation.have_suggestion, 1)
-        self.assertBackend(0)
-
-        # Unit should not be translated
-        self.assertEqual(len(unit.checks()), 0)
-        self.assertFalse(unit.translated)
-        self.assertFalse(unit.fuzzy)
-        self.assertEqual(len(self.get_unit().suggestions()), 1)
+        self.assertEqual(len(suggestions), 1)
 
     def test_accept_edit(self):
         translate_url = reverse('translate', kwargs=self.kw_translation)
@@ -126,7 +147,7 @@ class SuggestionsTest(ViewTestCase):
             '',
             accept_edit=suggestion,
         )
-        self.assertRedirectsOffset(response, translate_url, 0)
+        self.assert_redirects_offset(response, translate_url, 0)
 
     def test_accept(self):
         translate_url = reverse('translate', kwargs=self.kw_translation)
@@ -144,7 +165,7 @@ class SuggestionsTest(ViewTestCase):
             '',
             accept=suggestions[1],
         )
-        self.assertRedirectsOffset(response, translate_url, 1)
+        self.assert_redirects_offset(response, translate_url, 1)
 
         # Reload from database
         unit = self.get_unit()
@@ -159,7 +180,7 @@ class SuggestionsTest(ViewTestCase):
         self.assertTrue(unit.translated)
         self.assertFalse(unit.fuzzy)
         self.assertEqual(unit.target, 'Ahoj svete!\n')
-        self.assertBackend(1)
+        self.assert_backend(1)
         self.assertEqual(len(self.get_unit().suggestions()), 1)
 
     def test_accept_anonymous(self):
@@ -174,7 +195,10 @@ class SuggestionsTest(ViewTestCase):
         suggestions = list(self.get_unit().suggestions())
         self.assertEqual(len(suggestions), 1)
 
-        self.assertIsNone(suggestions[0].user)
+        self.assertEqual(
+            suggestions[0].user.username,
+            settings.ANONYMOUS_USER_NAME
+        )
 
         # Accept one of suggestions
         response = self.edit_unit(
@@ -182,7 +206,7 @@ class SuggestionsTest(ViewTestCase):
             '',
             accept=suggestions[0].pk,
         )
-        self.assertRedirectsOffset(response, translate_url, 1)
+        self.assert_redirects_offset(response, translate_url, 1)
 
         # Reload from database
         unit = self.get_unit()
@@ -210,7 +234,7 @@ class SuggestionsTest(ViewTestCase):
             '',
             upvote=suggestion_id,
         )
-        self.assertRedirectsOffset(response, translate_url, 0)
+        self.assert_redirects_offset(response, translate_url, 0)
 
         suggestion = Suggestion.objects.get(pk=suggestion_id)
         self.assertEqual(
@@ -223,7 +247,7 @@ class SuggestionsTest(ViewTestCase):
             '',
             downvote=suggestion_id,
         )
-        self.assertRedirectsOffset(response, translate_url, 0)
+        self.assert_redirects_offset(response, translate_url, 0)
 
         suggestion = Suggestion.objects.get(pk=suggestion_id)
         self.assertEqual(
@@ -246,7 +270,7 @@ class SuggestionsTest(ViewTestCase):
             '',
             upvote=suggestion_id,
         )
-        self.assertRedirectsOffset(response, translate_url, 0)
+        self.assert_redirects_offset(response, translate_url, 0)
 
         # Reload from database
         unit = self.get_unit()
@@ -261,4 +285,4 @@ class SuggestionsTest(ViewTestCase):
         self.assertTrue(unit.translated)
         self.assertFalse(unit.fuzzy)
         self.assertEqual(unit.target, 'Nazdar svete!\n')
-        self.assertBackend(1)
+        self.assert_backend(1)

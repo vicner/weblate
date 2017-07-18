@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 import os.path
@@ -42,9 +42,7 @@ REPOWEB_URL = \
 
 
 def get_test_file(name):
-    '''
-    Returns filename of test file.
-    '''
+    """Return filename of test file."""
     return os.path.join(TEST_DATA, name)
 
 
@@ -57,7 +55,7 @@ def remove_readonly(func, path, _):
 class RepoTestMixin(object):
     @staticmethod
     def optional_extract(output, tarname):
-        """Extracts test repository data if needed
+        """Extract test repository data if needed
 
         Checks whether directory exists or is older than archive.
         """
@@ -161,9 +159,7 @@ class RepoTestMixin(object):
         clean_indexes()
 
     def create_project(self):
-        """
-        Creates test project.
-        """
+        """Create test project."""
         project = Project.objects.create(
             name='Test',
             slug='test',
@@ -174,9 +170,11 @@ class RepoTestMixin(object):
 
     def _create_subproject(self, file_format, mask, template='',
                            new_base='', vcs='git', branch=None, **kwargs):
-        """
-        Creates real test subproject.
-        """
+        """Create real test subproject."""
+        if file_format not in FILE_FORMATS:
+            raise SkipTest(
+                'File format {0} is not supported!'.format(file_format)
+            )
         if 'project' not in kwargs:
             kwargs['project'] = self.create_project()
 
@@ -220,9 +218,7 @@ class RepoTestMixin(object):
         )
 
     def create_subproject(self):
-        """
-        Wrapper method for providing test subproject.
-        """
+        """Wrapper method for providing test subproject."""
         return self._create_subproject(
             'auto',
             'po/*.po',
@@ -322,6 +318,20 @@ class RepoTestMixin(object):
             'json-mono/en.json',
         )
 
+    def create_json_nested(self):
+        return self._create_subproject(
+            'json',
+            'json-nested/*.json',
+            'json-nested/en.json',
+        )
+
+    def create_joomla(self):
+        return self._create_subproject(
+            'joomla',
+            'joomla/*.ini',
+            'joomla/en-GB.ini',
+        )
+
     def create_tsv(self):
         return self._create_subproject(
             'csv',
@@ -358,7 +368,7 @@ class RepoTestMixin(object):
     def create_xliff(self, name='default'):
         return self._create_subproject(
             'xliff',
-            'xliff/*/%s.xlf' % name,
+            'xliff/*/{0}.xlf'.format(name),
         )
 
     def create_xliff_mono(self):
@@ -369,8 +379,6 @@ class RepoTestMixin(object):
         )
 
     def create_resx(self):
-        if 'resx' not in FILE_FORMATS:
-            raise SkipTest('resx not supported')
         return self._create_subproject(
             'resx',
             'resx/*.resx',
@@ -378,8 +386,6 @@ class RepoTestMixin(object):
         )
 
     def create_yaml(self):
-        if 'yaml' not in FILE_FORMATS:
-            raise SkipTest('yaml not supported')
         return self._create_subproject(
             'yaml',
             'yml/*.yml',
@@ -387,8 +393,6 @@ class RepoTestMixin(object):
         )
 
     def create_ruby_yaml(self):
-        if 'ruby-yaml' not in FILE_FORMATS:
-            raise SkipTest('yaml not supported')
         return self._create_subproject(
             'ruby-yaml',
             'ruby-yml/*.yml',

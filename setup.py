@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -16,10 +16,11 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 import os
+import sys
 from setuptools import setup
 
 # allow setup.py to be run from any path
@@ -31,38 +32,16 @@ with open(os.path.join(os.path.dirname(__file__), 'README.rst')) as readme:
 with open('requirements.txt') as requirements:
     REQUIRES = requirements.read().splitlines()
 
+DATA_FILES = [
+    ('share/weblate/' + root, [os.path.join(root, f) for f in files])
+    for root, dirs, files in os.walk('examples')
+]
+
 setup(
     name='Weblate',
-    version='2.11',
+    version='2.16',
     packages=[
         'weblate',
-        'weblate.api',
-        'weblate.api.migrations',
-        'weblate.accounts',
-        'weblate.accounts.management',
-        'weblate.accounts.management.commands',
-        'weblate.accounts.migrations',
-        'weblate.accounts.templatetags',
-        'weblate.accounts.tests',
-        'weblate.billing',
-        'weblate.billing.management',
-        'weblate.billing.management.commands',
-        'weblate.billing.migrations',
-        'weblate.lang',
-        'weblate.lang.management',
-        'weblate.lang.management.commands',
-        'weblate.lang.migrations',
-        'weblate.trans',
-        'weblate.trans.autofixes',
-        'weblate.trans.checks',
-        'weblate.trans.machine',
-        'weblate.trans.management',
-        'weblate.trans.management.commands',
-        'weblate.trans.migrations',
-        'weblate.trans.models',
-        'weblate.trans.templatetags',
-        'weblate.trans.tests',
-        'weblate.trans.views',
     ],
     include_package_data=True,
     license='GPLv3+',
@@ -77,11 +56,17 @@ setup(
     author='Michal Čihař',
     author_email='michal@cihar.com',
     install_requires=REQUIRES,
+    zip_safe=False,
     extras_require={
         'Mercurial': ['Mercurial>=2.8'],
-        'Unicode': ['pyuca>=1.1'],
-        'Avatars': ['pyLibravatar', 'pydns'],
-        'Android': ['babel'],
+        'Unicode': ['pyuca>=1.1', 'python-bidi>=0.4.0', 'chardet'],
+        'Avatars': [
+            'pyLibravatar',
+            'pydns' if sys.version_info[0] == 2 else 'py3dns'
+        ],
+        'Android': ['Babel'],
+        'YAML': ['PyYAML>=3.0'],
+        'OCR': ['tesserocr>=1.2'],
     },
     classifiers=[
         'Environment :: Web Environment',
@@ -108,4 +93,10 @@ setup(
             'weblate = weblate.runner:main',
         ],
     },
+    tests_require=(
+        'selenium',
+        'httpretty',
+    ),
+    test_suite='runtests.runtests',
+    data_files=DATA_FILES,
 )

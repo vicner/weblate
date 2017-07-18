@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from django.core.management.base import BaseCommand
@@ -27,9 +27,7 @@ class Command(BaseCommand):
     help = 'lists versions of required software components'
 
     def handle(self, *args, **options):
-        '''
-        Prints versions of dependencies.
-        '''
+        """Print versions of dependencies."""
         self.stdout.write(get_versions_string())
         self.stdout.write(
             ' * Database backends: ' +

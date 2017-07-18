@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,54 +15,43 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
 
-from weblate.trans.machine.base import (
-    MachineTranslation, MissingConfiguration
-)
-from weblate import appsettings
+from django.conf import settings
+
+from weblate.trans.machine.base import MachineTranslation, MissingConfiguration
 
 from six.moves.urllib.parse import quote
 
 
 class TMServerTranslation(MachineTranslation):
-    '''
-    tmserver machine translation support.
-    '''
+    """tmserver machine translation support."""
     name = 'tmserver'
 
     def __init__(self):
-        '''
-        Checks configuration.
-        '''
+        """Check configuration."""
         super(TMServerTranslation, self).__init__()
         self.url = self.get_server_url()
 
     def get_server_url(self):
-        '''
-        Returns URL of a server.
-        '''
-        if appsettings.MT_TMSERVER is None:
+        """Return URL of a server."""
+        if settings.MT_TMSERVER is None:
             raise MissingConfiguration(
                 'Not configured tmserver URL'
             )
 
-        return appsettings.MT_TMSERVER.rstrip('/')
+        return settings.MT_TMSERVER.rstrip('/')
 
     def convert_language(self, language):
-        '''
-        Converts language to service specific code.
-        '''
+        """Convert language to service specific code."""
         return language.replace('-', '_').lower()
 
     def download_languages(self):
-        '''
-        Downloads list of supported languages from a service.
-        '''
-        data = self.json_req('%s/languages/' % self.url)
+        """Download list of supported languages from a service."""
+        data = self.json_req('{0}/languages/'.format(self.url))
         return [
             (src, tgt)
             for src in data['sourceLanguages']
@@ -70,9 +59,7 @@ class TMServerTranslation(MachineTranslation):
         ]
 
     def is_supported(self, source, language):
-        '''
-        Checks whether given language combination is supported.
-        '''
+        """Check whether given language combination is supported."""
         if len(self.supported_languages) == 0:
             # Fallback for old tmserver which does not export list of
             # supported languages
@@ -80,14 +67,12 @@ class TMServerTranslation(MachineTranslation):
         return (source, language) in self.supported_languages
 
     def download_translations(self, source, language, text, unit, user):
-        '''
-        Downloads list of possible translations from a service.
-        '''
-        url = '%s/%s/%s/unit/%s' % (
+        """Download list of possible translations from a service."""
+        url = '{0}/{1}/{2}/unit/{3}'.format(
             self.url,
             quote(source),
             quote(language),
-            quote(text[:500].replace('\r', ' ').encode('utf-8')),
+            quote(text[:500].replace('\r', ' ').encode('utf-8'))
         )
         response = self.json_req(url)
 
@@ -96,9 +81,7 @@ class TMServerTranslation(MachineTranslation):
 
 
 class AmagamaTranslation(TMServerTranslation):
-    '''
-    Specific instance of tmserver ran by Virtaal authors.
-    '''
+    """Specific instance of tmserver ran by Virtaal authors."""
     name = 'Amagama'
 
     def get_server_url(self):

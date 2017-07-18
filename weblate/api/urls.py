@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
@@ -24,7 +24,7 @@ from django.conf.urls import url, include
 
 from weblate.api.views import (
     ProjectViewSet, ComponentViewSet, TranslationViewSet, LanguageViewSet,
-    UnitViewSet, ChangeViewSet,
+    UnitViewSet, ChangeViewSet, SourceViewSet, ScreenshotViewSet,
 )
 from weblate.api.routers import WeblateRouter
 
@@ -55,6 +55,14 @@ router.register(
     r'units',
     UnitViewSet
 )
+router.register(
+    r'sources',
+    SourceViewSet
+)
+router.register(
+    r'screenshots',
+    ScreenshotViewSet
+)
 
 
 # Wire up our API using automatic URL routing.
@@ -64,8 +72,4 @@ urlpatterns = [
         r'^',
         include(router.urls)
     ),
-    url(
-        r'^api-auth/',
-        include('rest_framework.urls', namespace='rest_framework')
-    )
 ]

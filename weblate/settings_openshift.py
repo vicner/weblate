@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 import os
@@ -23,7 +23,7 @@ import sys
 from weblate.openshiftlib import get_openshift_secret_key, import_env_vars
 
 # Import example settings file to get default values for Weblate settings.
-from weblate.settings_example import *
+from weblate.settings_example import *  # noqa
 
 DEBUG = False
 
@@ -91,17 +91,12 @@ CACHES = {
     }
 }
 
-GIT_ROOT = os.path.join(os.environ['OPENSHIFT_DATA_DIR'], 'repos')
-
 # Offload indexing: if the cron cartridge is installed the preconfigured job
 # in .openshift/cron/minutely/update_index updates the index.
 if os.environ.get('OPENSHIFT_CRON_DIR', False):
     OFFLOAD_INDEXING = True
 else:
     OFFLOAD_INDEXING = False
-
-# Where to put Whoosh index
-WHOOSH_INDEX = os.path.join(os.environ['OPENSHIFT_DATA_DIR'], 'whoosh-index')
 
 # List of machine translations
 MACHINE_TRANSLATION_SERVICES = (
@@ -110,8 +105,12 @@ MACHINE_TRANSLATION_SERVICES = (
 )
 
 if os.environ.get('OPENSHIFT_CLOUD_DOMAIN', False):
-    SERVER_EMAIL = 'no-reply@%s' % os.environ['OPENSHIFT_CLOUD_DOMAIN']
-    DEFAULT_FROM_EMAIL = 'no-reply@%s' % os.environ['OPENSHIFT_CLOUD_DOMAIN']
+    SERVER_EMAIL = 'no-reply@{0}'.format(
+        os.environ['OPENSHIFT_CLOUD_DOMAIN']
+    )
+    DEFAULT_FROM_EMAIL = 'no-reply@{0}'.format(
+        os.environ['OPENSHIFT_CLOUD_DOMAIN']
+    )
 
 ALLOWED_HOSTS = [os.environ['OPENSHIFT_APP_DNS']]
 

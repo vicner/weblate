@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
@@ -25,86 +25,61 @@ import os
 from django.core.urlresolvers import reverse
 
 from weblate.logger import LOGGER
+from weblate.accounts.avatar import get_user_display
 
 
 class PercentMixin(object):
-    """
-    Defines API to getting percentage status of translations.
-    """
+    """Define API to getting percentage status of translations."""
     _percents = None
 
     def get_percents(self):
-        """
-        Returns percentages of translation status.
-        """
+        """Return percentages of translation status."""
         if self._percents is None:
             self._percents = self._get_percents()
 
         return self._percents
 
     def _get_percents(self):
-        """
-        Returns percentages of translation status.
-        """
+        """Return percentages of translation status."""
         raise NotImplementedError()
 
     def get_translated_percent(self):
-        """
-        Returns percent of translated strings.
-        """
+        """Return percent of translated strings."""
         return self.get_percents()[0]
 
     def get_words_percent(self):
-        """
-        Returns percent of translated strings.
-        """
+        """Return percent of translated strings."""
         return self.get_percents()[3]
 
     def get_untranslated_percent(self):
-        """
-        Returns percent of untranslated strings.
-        """
+        """Return percent of untranslated strings."""
         return 100 - self.get_percents()[0]
 
     def get_fuzzy_percent(self):
-        """
-        Returns percent of fuzzy strings.
-        """
+        """Return percent of fuzzy strings."""
         return self.get_percents()[1]
 
     def get_failing_checks_percent(self):
-        """
-        Returns percentage of failed checks.
-        """
+        """Return percentage of failed checks."""
         return self.get_percents()[2]
 
 
 class URLMixin(object):
-    """
-    Mixin providing standard shortcut API for few standard URLs
-    """
-    def _reverse_url_name(self):
-        """
-        Returns base name for URL reversing.
-        """
-        raise NotImplementedError()
+    """Mixin providing standard shortcut API for few standard URLs"""
+    _reverse_url_name = None
 
     def _reverse_url_kwargs(self):
-        """
-        Returns kwargs for URL reversing.
-        """
+        """Return kwargs for URL reversing."""
         raise NotImplementedError()
 
     def reverse_url(self, name=None):
-        """
-        Generic reverser for URL.
-        """
+        """Generic reverser for URL."""
         if name is None:
-            urlname = self._reverse_url_name()
+            urlname = self._reverse_url_name
         else:
-            urlname = '%s_%s' % (
+            urlname = '{0}_{1}'.format(
                 name,
-                self._reverse_url_name()
+                self._reverse_url_name
             )
         return reverse(
             urlname,
@@ -134,9 +109,7 @@ class URLMixin(object):
 
 
 class LoggerMixin(object):
-    """
-    Mixin with logging.
-    """
+    """Mixin with logging."""
     @property
     def log_prefix(self):
         return 'default'
@@ -163,21 +136,16 @@ class LoggerMixin(object):
 
 
 class PathMixin(LoggerMixin):
-    """
-    Mixin for path manipulations.
-    """
+    """Mixin for path manipulations."""
     _dir_path = None
     _linked_subproject = None
 
     def _get_path(self):
-        """
-        Actual calculation of path.
-        """
+        """Actual calculation of path."""
         raise NotImplementedError()
 
     def get_path(self):
-        """
-        Return path to directory.
+        """Return path to directory.
 
         Caching is really necessary for linked project, otherwise
         we end up fetching linked subproject again and again.
@@ -188,9 +156,7 @@ class PathMixin(LoggerMixin):
         return self._dir_path
 
     def check_rename(self, old):
-        """
-        Detects slug changes and possibly renames underlaying directory.
-        """
+        """Detect slug changes and possibly renames underlaying directory."""
         # No moving for links
         if (getattr(self, 'is_repo_link', False) or
                 getattr(old, 'is_repo_link', False)):
@@ -215,9 +181,12 @@ class PathMixin(LoggerMixin):
             self._linked_subproject = None
 
     def create_path(self):
-        """
-        Create filesystem directory for storing data
-        """
+        """Create filesystem directory for storing data"""
         path = self.get_path()
         if not os.path.exists(path):
             os.makedirs(path)
+
+
+class UserDisplayMixin(object):
+    def get_user_display(self, icon=True):
+        return get_user_display(self.user, icon, link=True)

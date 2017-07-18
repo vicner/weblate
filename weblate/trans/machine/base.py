@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,11 +15,9 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-'''
-Base code for machine translation services.
-'''
+"""Base code for machine translation services."""
 
 from __future__ import unicode_literals
 
@@ -27,40 +25,33 @@ import sys
 import json
 
 from six.moves.urllib.request import Request, urlopen
-from six.moves.urllib.parse import urlencode
 
 from django.core.cache import cache
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
+from django.utils.http import urlencode
 
 from weblate import USER_AGENT
 from weblate.logger import LOGGER
 from weblate.utils.errors import report_error
+from weblate.trans.site import get_site_url
 
 
 class MachineTranslationError(Exception):
-    '''
-    Generic Machine translation error.
-    '''
+    """Generic Machine translation error."""
 
 
 class MissingConfiguration(ImproperlyConfigured):
-    '''
-    Exception raised when configuraiton is wrong.
-    '''
+    """Exception raised when configuraiton is wrong."""
 
 
 class MachineTranslation(object):
-    '''
-    Generic object for machine translation services.
-    '''
+    """Generic object for machine translation services."""
     name = 'MT'
     default_languages = []
 
     def __init__(self):
-        '''
-        Creates new machine translation object.
-        '''
+        """Create new machine translation object."""
         self.mtid = self.name.lower().replace(' ', '-')
         self.request_url = None
         self.request_params = None
@@ -69,21 +60,15 @@ class MachineTranslation(object):
         return self.mtid
 
     def authenticate(self, request):
-        '''
-        Hook for backends to allow add authentication headers to request.
-        '''
+        """Hook for backends to allow add authentication headers to request."""
         return
 
     def json_req(self, url, http_post=False, skip_auth=False, raw=False,
                  **kwargs):
-        '''
-        Performs JSON request.
-        '''
+        """Perform JSON request."""
         # Encode params
         if len(kwargs) > 0:
-            params = urlencode(
-                {key: val.encode('utf-8') for key, val in kwargs.items()}
-            )
+            params = urlencode(kwargs)
         else:
             params = ''
 
@@ -99,6 +84,7 @@ class MachineTranslation(object):
         request = Request(url)
         request.timeout = 0.5
         request.add_header('User-Agent', USER_AGENT)
+        request.add_header('Referer', get_site_url())
         # Optional authentication
         if not skip_auth:
             self.authenticate(request)
@@ -136,9 +122,7 @@ class MachineTranslation(object):
         return response
 
     def json_status_req(self, url, http_post=False, skip_auth=False, **kwargs):
-        '''
-        Performs JSON request with checking response status.
-        '''
+        """Perform JSON request with checking response status."""
         # Perform request
         response = self.json_req(url, http_post, skip_auth, **kwargs)
 
@@ -150,14 +134,11 @@ class MachineTranslation(object):
         return response
 
     def download_languages(self):
-        '''
-        Downloads list of supported languages from a service.
-        '''
+        """Download list of supported languages from a service."""
         return []
 
     def download_translations(self, source, language, text, unit, user):
-        '''
-        Downloads list of possible translations from a service.
+        """Download list of possible translations from a service.
 
         Should return tuple - (translation text, translation quality, source of
         translation, source string).
@@ -165,13 +146,11 @@ class MachineTranslation(object):
         You can use self.name as source of translation, if you can not give
         better hint and text parameter as source string if you do no fuzzy
         matching.
-        '''
+        """
         raise NotImplementedError()
 
     def convert_language(self, language):
-        '''
-        Converts language to service specific code.
-        '''
+        """Convert language to service specific code."""
         return language
 
     def report_error(self, exc, message):
@@ -192,10 +171,8 @@ class MachineTranslation(object):
 
     @property
     def supported_languages(self):
-        '''
-        Returns list of supported languages.
-        '''
-        cache_key = '%s-languages' % self.mtid
+        """Return list of supported languages."""
+        cache_key = '{0}-languages'.format(self.mtid)
 
         # Try using list from cache
         languages = cache.get(cache_key)
@@ -220,18 +197,14 @@ class MachineTranslation(object):
         return languages
 
     def is_supported(self, source, language):
-        '''
-        Checks whether given language combination is supported.
-        '''
+        """Check whether given language combination is supported."""
         return (
             language in self.supported_languages and
             source in self.supported_languages
         )
 
     def translate(self, language, text, unit, user):
-        '''
-        Returns list of machine translations.
-        '''
+        """Return list of machine translations."""
         if text == '':
             return []
 
@@ -243,6 +216,8 @@ class MachineTranslation(object):
             # Try without country code
             if '_' in language or '-' in language:
                 language = language.replace('-', '_').split('_')[0]
+                if source == language:
+                    return []
                 if not self.is_supported(source, language):
                     return []
             else:
@@ -267,7 +242,7 @@ class MachineTranslation(object):
                 exc,
                 'Failed to fetch translations from %s',
             )
-            raise MachineTranslationError('{}: {}'.format(
+            raise MachineTranslationError('{0}: {1}'.format(
                 exc.__class__.__name__,
                 str(exc)
             ))

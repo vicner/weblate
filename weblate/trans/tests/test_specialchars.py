@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 """
@@ -39,3 +39,7 @@ class SpecialCharsTest(TestCase):
     def test_brx(self):
         chars = list(get_special_chars(Language(code='brx')))
         self.assertEqual(len(chars), 9)
+
+    def test_brx_add(self):
+        chars = list(get_special_chars(Language(code='brx'), 'ahoj'))
+        self.assertEqual(len(chars), 13)

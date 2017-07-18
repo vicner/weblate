@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,15 +15,15 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
+from django.conf import settings
 from django.contrib.syndication.views import Feed
 from django.utils.translation import ugettext as _
 from django.shortcuts import get_object_or_404
 from django.core.urlresolvers import reverse
 
-from weblate import appsettings
 from weblate.trans.models import Change
 from weblate.lang.models import Language
 from weblate.trans.views.helper import (
@@ -32,18 +32,16 @@ from weblate.trans.views.helper import (
 
 
 class ChangesFeed(Feed):
-    '''
-    Generic RSS feed for Weblate changes.
-    '''
+    """Generic RSS feed for Weblate changes."""
     def get_object(self, request):
         return request.user
 
     def title(self):
-        return _('Recent changes in %s') % appsettings.SITE_TITLE
+        return _('Recent changes in %s') % settings.SITE_TITLE
 
     def description(self):
         return _('All recent changes made using Weblate in %s.') % (
-            appsettings.SITE_TITLE
+            settings.SITE_TITLE
         )
 
     def link(self):
@@ -66,9 +64,7 @@ class ChangesFeed(Feed):
 
 
 class TranslationChangesFeed(ChangesFeed):
-    '''
-    RSS feed for changes in translation.
-    '''
+    """RSS feed for changes in translation."""
 
     # Arguments number differs from overridden method
     # pylint: disable=W0221
@@ -92,9 +88,7 @@ class TranslationChangesFeed(ChangesFeed):
 
 
 class SubProjectChangesFeed(TranslationChangesFeed):
-    '''
-    RSS feed for changes in subproject.
-    '''
+    """RSS feed for changes in subproject."""
 
     # Arguments number differs from overridden method
     # pylint: disable=W0221
@@ -109,9 +103,7 @@ class SubProjectChangesFeed(TranslationChangesFeed):
 
 
 class ProjectChangesFeed(TranslationChangesFeed):
-    '''
-    RSS feed for changes in project.
-    '''
+    """RSS feed for changes in project."""
 
     # Arguments number differs from overridden method
     # pylint: disable=W0221
@@ -126,9 +118,7 @@ class ProjectChangesFeed(TranslationChangesFeed):
 
 
 class LanguageChangesFeed(TranslationChangesFeed):
-    '''
-    RSS feed for changes in language.
-    '''
+    """RSS feed for changes in language."""
 
     # Arguments number differs from overridden method
     # pylint: disable=W0221

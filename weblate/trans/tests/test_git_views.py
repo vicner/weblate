@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,12 +15,10 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""
-Tests for Git manipulation views.
-"""
+"""Test for Git manipulation views."""
 
 from __future__ import unicode_literals
 
@@ -30,9 +28,7 @@ from weblate.trans.tests.test_views import ViewTestCase
 
 
 class GitNoChangeProjectTest(ViewTestCase):
-    '''
-    Testing of git manipulations with no change in repo.
-    '''
+    """Testing of git manipulations with no change in repo."""
 
     STATUS_CHECK = 'Push changes to the remote repository'
     TEST_TYPE = 'project'
@@ -45,12 +41,12 @@ class GitNoChangeProjectTest(ViewTestCase):
 
     def get_test_url(self, prefix):
         return reverse(
-            '%s_%s' % (prefix, self.TEST_TYPE),
-            kwargs=getattr(self, 'kw_%s' % self.TEST_TYPE)
+            '{0}_{1}'.format(prefix, self.TEST_TYPE),
+            kwargs=getattr(self, 'kw_{0}'.format(self.TEST_TYPE))
         )
 
     def get_expected_redirect(self):
-        return getattr(self, '%s_url' % self.TEST_TYPE) + '#repository'
+        return getattr(self, '{0}_url'.format(self.TEST_TYPE)) + '#repository'
 
     def test_commit(self):
         response = self.client.post(
@@ -84,23 +80,17 @@ class GitNoChangeProjectTest(ViewTestCase):
 
 
 class GitNoChangeSubProjectTest(GitNoChangeProjectTest):
-    '''
-    Testing of subproject git manipulations.
-    '''
+    """Testing of subproject git manipulations."""
     TEST_TYPE = 'subproject'
 
 
 class GitNoChangeTranslationTest(GitNoChangeProjectTest):
-    '''
-    Testing of translation git manipulations.
-    '''
+    """Testing of translation git manipulations."""
     TEST_TYPE = 'translation'
 
 
 class GitChangeProjectTest(GitNoChangeProjectTest):
-    '''
-    Testing of project git manipulations with not committed change in repo.
-    '''
+    """Testing of project git manipulations with not committed change."""
 
     STATUS_CHECK = 'There are some not committed changes!'
 
@@ -110,23 +100,17 @@ class GitChangeProjectTest(GitNoChangeProjectTest):
 
 
 class GitChangeSubProjectTest(GitChangeProjectTest):
-    '''
-    Testing of subproject git manipulations with not committed change in repo.
-    '''
+    """Testing of subproject git manipulations with not committed change."""
     TEST_TYPE = 'subproject'
 
 
 class GitChangeTranslationTest(GitChangeProjectTest):
-    '''
-    Testing of translation git manipulations with not committed change in repo.
-    '''
+    """Testing of translation git manipulations with not committed change."""
     TEST_TYPE = 'translation'
 
 
 class GitCommittedChangeProjectTest(GitNoChangeProjectTest):
-    '''
-    Testing of project git manipulations with committed change in repo.
-    '''
+    """Testing of project git manipulations with committed change in repo."""
 
     STATUS_CHECK = 'There are some new commits in the local repository!'
 
@@ -137,14 +121,10 @@ class GitCommittedChangeProjectTest(GitNoChangeProjectTest):
 
 
 class GitCommittedChangeSubProjectTest(GitCommittedChangeProjectTest):
-    '''
-    Testing of subproject git manipulations with committed change in repo.
-    '''
+    """Testing of subproject git manipulations with committed change."""
     TEST_TYPE = 'subproject'
 
 
 class GitCommittedChangeTranslationTest(GitCommittedChangeProjectTest):
-    '''
-    Testing of translation git manipulations with committed change in repo.
-    '''
+    """Testing of translation git manipulations with committed change."""
     TEST_TYPE = 'translation'

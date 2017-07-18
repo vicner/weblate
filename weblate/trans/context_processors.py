@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,16 +15,17 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from datetime import datetime
 
+from django.utils.http import is_safe_url
 from django.utils.translation import ugettext as _
 from django.conf import settings
 
 import weblate
-from weblate import appsettings
+import weblate.screenshots.views
 from weblate.trans.site import get_site_url
 from weblate.trans.models.project import Project
 
@@ -33,10 +34,8 @@ URL_DONATE = 'https://weblate.org/donate/?utm_source=weblate&utm_term=%s'
 
 
 def weblate_context(request):
-    """
-    Context processor to inject various useful variables into context.
-    """
-    if 'next' in request.GET:
+    """Context processor to inject various useful variables into context."""
+    if 'next' in request.GET and is_safe_url(request.GET['next']):
         login_redirect_url = request.GET['next']
     else:
         login_redirect_url = request.get_full_path()
@@ -45,10 +44,10 @@ def weblate_context(request):
 
     # Load user translations if user is authenticated
     subscribed_projects = None
-    if request.user.is_authenticated():
+    if request.user.is_authenticated:
         subscribed_projects = request.user.profile.subscriptions.all()
 
-    if appsettings.OFFER_HOSTING:
+    if settings.OFFER_HOSTING:
         description = _(
             'Hosted Weblate, the place to translate your software project.'
         )
@@ -73,17 +72,17 @@ def weblate_context(request):
         'weblate_url': URL_BASE % weblate.VERSION,
         'donate_url': URL_DONATE % weblate.VERSION,
 
-        'site_title': appsettings.SITE_TITLE,
+        'site_title': settings.SITE_TITLE,
         'site_url': get_site_url(),
 
-        'offer_hosting': appsettings.OFFER_HOSTING,
-        'demo_server': appsettings.DEMO_SERVER,
-        'enable_avatars': appsettings.ENABLE_AVATARS,
-        'enable_sharing': appsettings.ENABLE_SHARING,
+        'offer_hosting': settings.OFFER_HOSTING,
+        'demo_server': settings.DEMO_SERVER,
+        'enable_avatars': settings.ENABLE_AVATARS,
+        'enable_sharing': settings.ENABLE_SHARING,
 
-        'piwik_site_id': appsettings.PIWIK_SITE_ID,
-        'piwik_url': appsettings.PIWIK_URL,
-        'google_analytics_id': appsettings.GOOGLE_ANALYTICS_ID,
+        'piwik_site_id': settings.PIWIK_SITE_ID,
+        'piwik_url': settings.PIWIK_URL,
+        'google_analytics_id': settings.GOOGLE_ANALYTICS_ID,
 
         'current_date': datetime.utcnow().strftime('%Y-%m-%d'),
         'current_year': datetime.utcnow().strftime('%Y'),
@@ -91,12 +90,15 @@ def weblate_context(request):
 
         'login_redirect_url': login_redirect_url,
 
-        'hooks_enabled': appsettings.ENABLE_HOOKS,
+        'hooks_enabled': settings.ENABLE_HOOKS,
+        'has_ocr': weblate.screenshots.views.HAS_OCR,
 
-        'registration_open': appsettings.REGISTRATION_OPEN,
+        'registration_open': settings.REGISTRATION_OPEN,
         'acl_projects': projects,
         'subscribed_projects': subscribed_projects,
 
         'rollbar_token': rollbar_token,
         'rollbar_environment': rollbar_environment,
+        'allow_index': False,
+        'legal': 'weblate.legal' in settings.INSTALLED_APPS,
     }

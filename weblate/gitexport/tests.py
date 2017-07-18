@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,17 +15,23 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from base64 import b64encode
+import shutil
+import subprocess
+import tempfile
 
+from django.contrib.auth.models import User
 from django.core.urlresolvers import reverse
 from django.http.request import HttpRequest
 
 from weblate.gitexport.views import authenticate
 from weblate.gitexport.models import get_export_url
+from weblate.trans.tests.test_models import BaseLiveServerTestCase
 from weblate.trans.tests.test_views import ViewTestCase
+from weblate.trans.tests.utils import RepoTestMixin
 
 
 class GitExportTest(ViewTestCase):
@@ -56,7 +62,7 @@ class GitExportTest(ViewTestCase):
         request = HttpRequest()
         self.assertFalse(authenticate(request, 'digest fdsafds'))
 
-    def test_authenticate_basic_wrong(self):
+    def test_authenticate_wrong(self):
         request = HttpRequest()
         self.assertFalse(authenticate(
             request,
@@ -70,7 +76,7 @@ class GitExportTest(ViewTestCase):
             self.get_auth_string(self.user.auth_token.key)
         ))
 
-    def test_authenticate_basic_inactive(self):
+    def test_authenticate_inactive(self):
         self.user.is_active = False
         self.user.save()
         request = HttpRequest()
@@ -100,7 +106,7 @@ class GitExportTest(ViewTestCase):
             **kwargs
         )
 
-    def test_git_receive_wrong_auth(self):
+    def test_wrong_auth(self):
         response = self.git_receive(HTTP_AUTHORIZATION='foo')
         self.assertEqual(401, response.status_code)
 
@@ -119,7 +125,7 @@ class GitExportTest(ViewTestCase):
 
     def test_git_receive_acl_auth(self):
         self.enable_acl()
-        self.project.add_user(self.user)
+        self.project.add_user(self.user, '@VCS')
         response = self.git_receive(
             HTTP_AUTHORIZATION=self.get_auth_string(self.user.auth_token.key)
         )
@@ -130,10 +136,59 @@ class GitExportTest(ViewTestCase):
         response = self.git_receive(
             HTTP_AUTHORIZATION=self.get_auth_string(self.user.auth_token.key)
         )
-        self.assertEqual(403, response.status_code)
+        self.assertEqual(404, response.status_code)
 
     def test_get_export_url(self):
         self.assertEqual(
             'http://example.com/git/test/test/',
             get_export_url(self.subproject)
         )
+
+
+class GitCloneTest(BaseLiveServerTestCase, RepoTestMixin):
+    """Integration tests using git to clone the repo."""
+    acl = True
+
+    def setUp(self):
+        super(GitCloneTest, self).setUp()
+        self.clone_test_repos()
+        self.subproject = self.create_subproject()
+        self.subproject.project.enable_acl = True
+        self.subproject.project.save()
+        self.user = User.objects.create_user(
+            'testuser',
+            'noreply@weblate.org',
+            'testpassword',
+            first_name='Weblate Test',
+        )
+
+    def test_clone(self):
+        testdir = tempfile.mkdtemp()
+        if self.acl:
+            self.subproject.project.add_user(self.user, '@VCS')
+        try:
+            url = get_export_url(self.subproject).replace(
+                'http://example.com', self.live_server_url
+            ).replace(
+                'http://', 'http://{0}:{1}@'.format(
+                    self.user.username, self.user.auth_token.key
+                )
+            )
+            process = subprocess.Popen(
+                ['git', 'clone', url],
+                cwd=testdir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.PIPE,
+            )
+            output = process.communicate()[0]
+            retcode = process.poll()
+        finally:
+            shutil.rmtree(testdir)
+
+        check = self.assertEqual if self.acl else self.assertNotEqual
+        check(retcode, 0, 'Failed: {0}'.format(output))
+
+
+class GitCloneFailTest(GitCloneTest):
+    acl = False

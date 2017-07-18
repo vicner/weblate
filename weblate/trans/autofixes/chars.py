@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
@@ -25,57 +25,28 @@ from django.utils.translation import ugettext_lazy as _
 from weblate.trans.autofixes.base import AutoFix
 
 
-CONTROLCHARS = (
-    u'\x00',
-    u'\x01',
-    u'\x02',
-    u'\x03',
-    u'\x04',
-    u'\x05',
-    u'\x06',
-    u'\x07',
-    u'\x08',
-    u'\x0b',
-    u'\x0c',
-    u'\x0e',
-    u'\x0f',
-    u'\x10',
-    u'\x11',
-    u'\x12',
-    u'\x13',
-    u'\x14',
-    u'\x15',
-    u'\x16',
-    u'\x17',
-    u'\x18',
-    u'\x19',
-    u'\x1a',
-    u'\x1b',
-    u'\x1c',
-    u'\x1d',
-    u'\x1e',
-    u'\x1f'
-)
+CONTROLCHARS = frozenset((
+    '\x00', '\x01', '\x02', '\x03', '\x04', '\x05', '\x06', '\x07', '\x08',
+    '\x0b', '\x0c', '\x0e', '\x0f', '\x10', '\x11', '\x12', '\x13', '\x14',
+    '\x15', '\x16', '\x17', '\x18', '\x19', '\x1a', '\x1b', '\x1c', '\x1d',
+    '\x1e', '\x1f'
+))
 
 
 class ReplaceTrailingDotsWithEllipsis(AutoFix):
-    '''
-    Replace Trailing Dots with an Ellipsis.
-    '''
+    """Replace Trailing Dots with an Ellipsis."""
 
     fix_id = 'end-ellipsis'
     name = _('Trailing ellipsis')
 
     def fix_single_target(self, target, source, unit):
         if source and source[-1] == '…' and target.endswith('...'):
-            return '%s…' % target[:-3], True
+            return '{0}…'.format(target[:-3]), True
         return target, False
 
 
 class RemoveZeroSpace(AutoFix):
-    '''
-    Remove zero width space if there is none in the source.
-    '''
+    """Remove zero width space if there is none in the source."""
 
     fix_id = 'zero-width-space'
     name = _('Zero-width space')
@@ -89,9 +60,7 @@ class RemoveZeroSpace(AutoFix):
 
 
 class RemoveControlChars(AutoFix):
-    '''
-    Remove control chars from the string.
-    '''
+    """Remove control chars from the string."""
 
     fix_id = 'control-chars'
     name = _('Control chars')

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,15 +15,11 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 import os.path
 from io import BytesIO
-
-from PIL import Image, ImageDraw
-
-from six.moves.urllib.parse import quote
 
 try:
     from bidi.algorithm import get_display
@@ -31,8 +27,10 @@ except ImportError:
     from django.utils.encoding import force_text as get_display
 
 from django.core.urlresolvers import reverse
-from django.utils.translation import ugettext as _
+from django.utils.translation import ugettext as _, pgettext
 from django.template.loader import render_to_string
+
+from PIL import Image, ImageDraw
 
 from weblate.trans.fonts import is_base, get_font
 from weblate.trans.site import get_site_url
@@ -66,65 +64,79 @@ WIDGETS = {}
 
 
 def register_widget(widget):
-    '''
-    Registers widget in dictionary.
-    '''
+    """Register widget in dictionary."""
     WIDGETS[widget.name] = widget
     return widget
 
 
 class Widget(object):
-    '''
-    Generic widget class.
-    '''
+    """Generic widget class."""
     name = None
     colors = ('grey', 'white', 'black')
-    progress = {}
-    alpha = False
     extension = 'png'
     content_type = 'image/png'
     order = 100
+    show = True
 
     def __init__(self, obj, color=None, lang=None):
-        '''
-        Creates Widget object.
-        '''
+        """Create Widget object."""
         # Get object and related params
         self.obj = obj
-        self.percent = obj.get_translated_percent(lang)
-        self.total = obj.get_total()
-        self.languages = obj.get_language_count()
-        self.params = self.get_text_params()
-
-        # Process parameters
         self.color = self.get_color_name(color)
         self.lang = lang
 
-        # Set rendering variables
-        self.image = None
-        self.draw = None
-        self.width = 0
-
     def get_color_name(self, color):
-        '''
-        Return color name based on allowed ones.
-        '''
+        """Return color name based on allowed ones."""
         if color not in self.colors:
             return self.colors[0]
         return color
 
-    def get_line_width(self):
-        '''
-        Returns line width for current widget.
-        '''
-        if self.color == 'black':
-            return 0.8
-        return 0.2
+
+class ContentWidget(Widget):
+    """Generic content widget class."""
+
+    def __init__(self, obj, color=None, lang=None):
+        """Create Widget object."""
+        super(ContentWidget, self).__init__(obj, color, lang)
+        # Get translation status
+        self.percent = obj.get_translated_percent(lang)
+        # Set rendering variables
+        self.image = None
+
+    def get_percent_text(self):
+        return pgettext('Translated percents in widget', '{0}%').format(
+            int(self.percent)
+        )
+
+    def get_content(self):
+        """Return content of the badge."""
+        raise NotImplementedError()
+
+
+class BitmapWidget(ContentWidget):
+    """Base class for bitmap rendering widgets."""
+    name = None
+    colors = ('grey', 'white', 'black')
+    progress = {}
+    extension = 'png'
+    content_type = 'image/png'
+    order = 100
+    show = True
+
+    def __init__(self, obj, color=None, lang=None):
+        """Create Widget object."""
+        super(BitmapWidget, self).__init__(obj, color, lang)
+        # Get object and related params
+        self.total = obj.get_total()
+        self.languages = obj.get_language_count()
+        self.params = self.get_text_params()
+
+        # Set rendering variables
+        self.draw = None
+        self.width = 0
 
     def get_text_params(self):
-        '''
-        Creates dictionary used for text formatting.
-        '''
+        """Create dictionary used for text formatting."""
         return {
             'name': self.obj.name,
             'count': self.total,
@@ -133,27 +145,20 @@ class Widget(object):
         }
 
     def get_filename(self):
-        '''
-        Returns widgets filename.
-        '''
+        """Return widgets filename."""
         return os.path.join(
             os.path.dirname(__file__),
             'widget-images',
-            '%(widget)s-%(color)s.png' % {
+            '{widget}-{color}.png'.format(**{
                 'color': self.color,
                 'widget': self.name,
-            }
+            })
         )
 
     def render(self):
-        '''
-        Renders widget.
-        '''
+        """Render widget."""
         # PIL objects
-        if self.alpha:
-            mode = 'RGBA'
-        else:
-            mode = 'RGB'
+        mode = 'RGB'
         self.image = Image.open(self.get_filename()).convert(mode)
         self.draw = ImageDraw.Draw(self.image)
         self.width = self.image.size[0]
@@ -166,9 +171,7 @@ class Widget(object):
         self.render_texts()
 
     def render_progress(self):
-        '''
-        Renders progress bar.
-        '''
+        """Render progress bar."""
         # Filled bar
         if self.progress['horizontal']:
             self.draw.rectangle(
@@ -215,8 +218,9 @@ class Widget(object):
         return text % self.params
 
     def render_text(self, text, lang_text, base_font_size, bold_font,
-                    pos_x, pos_y):
-        text = self.get_text(text, lang_text)
+                    pos_x, pos_y, transform=True):
+        if transform:
+            text = self.get_text(text, lang_text)
         base_font = is_base(text)
         offset = 0
 
@@ -241,26 +245,50 @@ class Widget(object):
             offset += layout_size[1]
 
     def render_texts(self):
-        '''
-        Text rendering method to be overridden.
-        '''
+        """Text rendering method to be overridden."""
         raise NotImplementedError()
 
-    def get_image(self):
-        '''
-        Returns PNG data.
-        '''
+    def get_content(self):
+        """Return PNG data."""
         out = BytesIO()
-        if self.alpha:
-            image = self.image
-        else:
-            image = self.image.convert('P', palette=Image.ADAPTIVE)
+        image = self.image.convert('P', palette=Image.ADAPTIVE)
         image.save(out, 'PNG')
         return out.getvalue()
 
 
+class SVGWidget(ContentWidget):
+    """Base class for SVG rendering widgets."""
+    extension = 'svg'
+    content_type = 'image/svg+xml; charset=utf-8'
+
+    def get_content(self):
+        return self.image
+
+    def render(self):
+        """Rendering method to be implemented."""
+        raise NotImplementedError()
+
+
+class RedirectWidget(Widget):
+    """Generic redirect widget class."""
+    show = False
+
+    def redirect(self):
+        """Redirect to matching SVG badge."""
+        kwargs = {
+            'project': self.obj.slug,
+            'widget': 'svg',
+            'color': 'badge',
+            'extension': 'svg',
+        }
+        if self.lang:
+            kwargs['lang'] = self.lang.code
+            return reverse('widget-image-lang', kwargs=kwargs)
+        return reverse('widget-image', kwargs=kwargs)
+
+
 @register_widget
-class NormalWidget(Widget):
+class NormalWidget(BitmapWidget):
     name = '287x66'
     progress = {
         'x': 72,
@@ -292,7 +320,7 @@ class NormalWidget(Widget):
 
 
 @register_widget
-class SmallWidget(Widget):
+class SmallWidget(BitmapWidget):
     name = '88x31'
     order = 120
 
@@ -315,83 +343,31 @@ class SmallWidget(Widget):
 
 
 @register_widget
-class BadgeWidget(Widget):
+class BadgeWidget(RedirectWidget):
+    """Legacy badge which used to render PNG."""
     name = 'status'
     colors = ('badge', )
-    alpha = True
-    order = 90
-
-    def get_filename(self):
-        if self.percent >= 90:
-            mode = 'passing'
-        elif self.percent >= 75:
-            mode = 'medium'
-        else:
-            mode = 'failing'
-        return os.path.join(
-            os.path.dirname(__file__),
-            'widget-images',
-            'badge-%s.png' % mode
-        )
-
-    def render_texts(self):
-        self.render_text(
-            _('translated'),
-            None,
-            10, False,
-            4, 3
-        )
-        self.render_text(
-            '%(percent)d%%',
-            None,
-            10, False,
-            60, 3
-        )
 
 
 @register_widget
-class ShieldsBadgeWidget(Widget):
+class ShieldsBadgeWidget(RedirectWidget):
+    """Legacy badge which used to redirect to shields.io."""
     name = 'shields'
     colors = ('badge', )
-    extension = 'svg'
-    content_type = 'image/svg+xml'
-    order = 85
-
-    def redirect(self):
-        if self.percent >= 90:
-            color = 'brightgreen'
-        elif self.percent >= 75:
-            color = 'yellow'
-        else:
-            color = 'red'
-
-        return 'https://img.shields.io/badge/{0}-{1}-{2}.svg'.format(
-            quote(_('translated').encode('utf-8')),
-            '{0}%25'.format(int(self.percent)),
-            color
-        )
-
-    def render_texts(self):
-        '''
-        Text rendering method to be overridden.
-        '''
-        raise Exception('Not supported')
 
 
 @register_widget
-class SVGBadgeWidget(Widget):
+class SVGBadgeWidget(SVGWidget):
     name = 'svg'
     colors = ('badge', )
-    extension = 'svg'
-    content_type = 'image/svg+xml; charset=utf-8'
     order = 80
 
     def render(self):
-        translated_text = self.get_text(_('translated'))
+        translated_text = _('translated')
         font = get_font(11, False, is_base(translated_text))
         translated_width = font.getsize(translated_text)[0] + 12
 
-        percent_text = '{0}%'.format(int(self.percent))
+        percent_text = self.get_percent_text()
         font = get_font(11, False, is_base(percent_text))
         percent_width = font.getsize(percent_text)[0] + 7
 
@@ -422,18 +398,9 @@ class SVGBadgeWidget(Widget):
             }
         )
 
-    def get_image(self):
-        return self.image
-
-    def render_texts(self):
-        '''
-        Text rendering method to be overridden.
-        '''
-        raise Exception('Not supported')
-
 
 @register_widget
-class MultiLanguageWidget(SVGBadgeWidget):
+class MultiLanguageWidget(SVGWidget):
     name = 'multi'
     order = 81
     colors = ('red', 'green', 'blue', 'auto')
@@ -450,11 +417,8 @@ class MultiLanguageWidget(SVGBadgeWidget):
         offset = 30
         color = self.COLOR_MAP[self.color]
         for data in get_per_language_stats(self.obj):
-            language, translated, total = data[:3]
-            if total == 0:
-                percent = 0
-            else:
-                percent = int(100 * translated / total)
+            language = data[0]
+            percent = data[5]
             if self.color == 'auto':
                 if percent >= 90:
                     color = '#4c1'

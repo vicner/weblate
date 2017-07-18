@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from weblate.trans.management.commands import WeblateCommand
@@ -25,9 +25,7 @@ class Command(WeblateCommand):
     help = 'checks status of git repo'
 
     def handle(self, *args, **options):
-        '''
-        Shows status of git repository in given projects.
-        '''
+        """Show status of git repository in given projects."""
         for subproject in self.get_subprojects(*args, **options):
-            self.stdout.write('%s:' % subproject)
+            self.stdout.write('{0}:'.format(subproject))
             self.stdout.write(subproject.repository.status())

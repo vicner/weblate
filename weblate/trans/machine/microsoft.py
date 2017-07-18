@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,37 +15,35 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
 
 from datetime import timedelta
+
+from django.conf import settings
 from django.utils import timezone
+
 from weblate.trans.machine.base import (
     MachineTranslation, MachineTranslationError, MissingConfiguration
 )
-from weblate import appsettings
 
 COGNITIVE_BASE_URL = 'https://api.cognitive.microsoft.com/sts/v1.0'
 COGNITIVE_TOKEN = COGNITIVE_BASE_URL + '/issueToken?Subscription-Key={0}'
 
-BASE_URL = 'http://api.microsofttranslator.com/V2/Ajax.svc/'
+BASE_URL = 'https://api.microsofttranslator.com/V2/Ajax.svc/'
 TRANSLATE_URL = BASE_URL + 'Translate'
 LIST_URL = BASE_URL + 'GetLanguagesForTranslate'
 TOKEN_EXPIRY = timedelta(minutes=9)
 
 
 class MicrosoftTranslation(MachineTranslation):
-    '''
-    Microsoft Translator machine translation support.
-    '''
+    """Microsoft Translator machine translation support."""
     name = 'Microsoft Translator'
 
     def __init__(self):
-        '''
-        Checks configuration.
-        '''
+        """Check configuration."""
         super(MicrosoftTranslation, self).__init__()
         self._access_token = None
         self._token_expiry = None
@@ -55,33 +53,27 @@ class MicrosoftTranslation(MachineTranslation):
             )
 
     def ms_supported(self):
-        '''
-        Checks whether service is supported.
-        '''
+        """Check whether service is supported."""
         return (
-            appsettings.MT_MICROSOFT_ID is not None and
-            appsettings.MT_MICROSOFT_SECRET is not None
+            settings.MT_MICROSOFT_ID is not None and
+            settings.MT_MICROSOFT_SECRET is not None
         )
 
     def is_token_expired(self):
-        '''
-        Checks whether token is about to expire.
-        '''
+        """Check whether token is about to expire."""
         return self._token_expiry <= timezone.now()
 
     @property
     def access_token(self):
-        '''
-        Obtains and caches access token.
-        '''
+        """Obtain and caches access token."""
         if self._access_token is None or self.is_token_expired():
             data = self.json_req(
                 'https://datamarket.accesscontrol.windows.net/v2/OAuth2-13',
                 skip_auth=True,
                 http_post=True,
-                client_id=appsettings.MT_MICROSOFT_ID,
-                client_secret=appsettings.MT_MICROSOFT_SECRET,
-                scope='http://api.microsofttranslator.com',
+                client_id=settings.MT_MICROSOFT_ID,
+                client_secret=settings.MT_MICROSOFT_SECRET,
+                scope='https://api.microsofttranslator.com',
                 grant_type='client_credentials',
             )
 
@@ -97,18 +89,14 @@ class MicrosoftTranslation(MachineTranslation):
         return self._access_token
 
     def authenticate(self, request):
-        '''
-        Hook for backends to allow add authentication headers to request.
-        '''
+        """Hook for backends to allow add authentication headers to request."""
         request.add_header(
             'Authorization',
-            'Bearer %s' % self.access_token
+            'Bearer {0}'.format(self.access_token)
         )
 
     def convert_language(self, language):
-        '''
-        Converts language to service specific code.
-        '''
+        """Convert language to service specific code."""
         language = language.replace('_', '-').lower()
         if language == 'zh-tw':
             return 'zh-CHT'
@@ -121,15 +109,20 @@ class MicrosoftTranslation(MachineTranslation):
         return language
 
     def download_languages(self):
-        '''
-        Downloads list of supported languages from a service.
-        '''
+        """Download list of supported languages from a service.
+
+        Example of the response:
+        ['af', 'ar', 'bs-Latn', 'bg', 'ca', 'zh-CHS', 'zh-CHT', 'yue', 'hr',
+        'cs', 'da', 'nl', 'en', 'et', 'fj', 'fil', 'fi', 'fr', 'de', 'el',
+        'ht', 'he', 'hi', 'mww', 'h', 'id', 'it', 'ja', 'sw', 'tlh',
+        'tlh-Qaak', 'ko', 'lv', 'lt', 'mg', 'ms', 'mt', 'yua', 'no', 'otq',
+        'fa', 'pl', 'pt', 'ro', 'r', 'sm', 'sr-Cyrl', 'sr-Latn', 'sk', 'sl',
+        'es', 'sv', 'ty', 'th', 'to', 'tr', 'uk', 'ur', 'vi', 'cy']
+        """
         return self.json_req(LIST_URL)
 
     def download_translations(self, source, language, text, unit, user):
-        '''
-        Downloads list of possible translations from a service.
-        '''
+        """Download list of possible translations from a service."""
         args = {
             'text': text[:5000],
             'from': source,
@@ -142,25 +135,31 @@ class MicrosoftTranslation(MachineTranslation):
 
 
 class MicrosoftCognitiveTranslation(MicrosoftTranslation):
-    '''
-    Microsoft Cognitive Services Translator API machine translation support.
-    '''
+    """Microsoft Cognitive Services Translator API support."""
     name = 'Microsoft Translator'
 
+    LANGUAGE_CONVERTER = {
+        'zh-hant': 'zh-CHT',
+        'zh-hans': 'zh-CHS',
+        'zh-tw': 'zh-CHT',
+        'zh-cn': 'zh-CHS',
+        'tlh-qaak': 'tlh-Qaak',
+        'nb': 'no',
+        'bs-latn': 'bs-Latn',
+        'sr-latn': 'sr-Latn',
+        'sr-cyrl': 'sr-Cyrl',
+    }
+
     def ms_supported(self):
-        '''
-        Checks whether service is supported.
-        '''
-        return appsettings.MT_MICROSOFT_COGNITIVE_KEY is not None
+        """Check whether service is supported."""
+        return settings.MT_MICROSOFT_COGNITIVE_KEY is not None
 
     @property
     def access_token(self):
-        '''
-        Obtains and caches access token.
-        '''
+        """Obtain and caches access token."""
         if self._access_token is None or self.is_token_expired():
             self._access_token = self.json_req(
-                COGNITIVE_TOKEN.format(appsettings.MT_MICROSOFT_COGNITIVE_KEY),
+                COGNITIVE_TOKEN.format(settings.MT_MICROSOFT_COGNITIVE_KEY),
                 skip_auth=True,
                 http_post=True,
                 raw=True,
@@ -169,3 +168,13 @@ class MicrosoftCognitiveTranslation(MicrosoftTranslation):
             self._token_expiry = timezone.now() + TOKEN_EXPIRY
 
         return self._access_token
+
+    def convert_language(self, language):
+        """Convert language to service specific code.
+
+        Remove second part of locale in most of cases.
+        """
+        language = language.replace('_', '-').lower()
+        if language in self.LANGUAGE_CONVERTER:
+            return self.LANGUAGE_CONVERTER[language]
+        return language.split('-')[0]

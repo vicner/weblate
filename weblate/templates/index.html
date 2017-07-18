@@ -36,7 +36,6 @@
   </ul>
 </li>
 <li><a href="#search" data-toggle="tab">{% trans "Search" %}</a></li>
-<li><a href="#history" data-toggle="tab">{% trans "History" %}</a></li>
 <li><a href="#activity" data-toggle="tab" data-load="activity" data-yearly="{% url 'yearly_activity' %}" data-monthly="{% url 'monthly_activity' %}">{% trans "Activity" %}</a></li>
 <li class="dropdown">
   <a class="dropdown-toggle" data-toggle="dropdown" href="#">
@@ -49,6 +48,7 @@
     <li><a href="{% url 'data_root' %}">{% trans "Data export" %}</a></li>
     <li><a href="{% url 'widgets_root' %}">{% trans "Widgets" %}</a></li>
     <li><a href="{% url 'stats' %}">{% trans "Statistics" %}</a></li>
+    <li><a href="{% url 'changes' %}">{% trans "History" %}</a></li>
   </ul>
 </li>
 </ul>
@@ -61,6 +61,7 @@
         {% with usersubscriptions as translations and 2 as show_language and user.profile.hide_completed as hide_completed %}
         {% include "list-translations.html" %}
         {% endwith %}
+        <p>{% include "legend.html" %}</p>
     {% else %}
         {% with subscribed_projects as projects %}
         {% include "list-projects.html" %}
@@ -80,6 +81,7 @@
 {% with userlanguages as translations and 2 as show_language and user.profile.hide_completed as hide_completed %}
 {% include "list-translations.html" %}
 {% endwith %}
+<p>{% include "legend.html" %}</p>
 {% else %}
 <p class="help-block">{% trans "Choose your languages in preferences and you will get an overview here of available translations for those languages in all projects." %}</p>
 {% endif %} {# userlanguages #}
@@ -93,6 +95,7 @@
 {% with suggestions as translations and 2 as show_language and user.profile.hide_completed as hide_completed %}
 {% include "list-translations.html" %}
 {% endwith %}
+<p>{% include "legend.html" %}</p>
 {% else %}
 <p class="help-block">{% trans "Could not find any suggestions for you, please choose your languages in preferences to get more suggestions." %}</p>
 {% endif %}
@@ -106,16 +109,14 @@
 
 {% for componentlist in componentlists %}
     <div {% active_tab componentlist.tab_slug %}>
-    {% if userlanguages %}
     {% with componentlist.translations as translations and 2 as show_language and user.profile.hide_completed as hide_completed %}
+    {% if translations %}
     {% include "list-translations.html" %}
-    {% endwith %}
+    <p>{% include "legend.html" %}</p>
     {% else %}
-    {% with componentlist.components.all as projects %}
-    {% include "list-projects.html" %}
+    <p class="help-block">{% trans "Could not find any matching translation in this component list, probably not translated to your languages." %}</p>
+    {% endif %}
     {% endwith %}
-    <p class="help-block">{% trans "Choose your languages in preferences and you will get an overview here of available translations for those languages." %}</p>
-    {% endif %} {# userlanguages #}
     <p><a class="btn btn-default" href="{% url 'profile' %}#languages">{% trans "Manage your languages" %}</a></p>
 </div>{% endfor %}
 
@@ -129,11 +130,6 @@
 </div>
 
 {% include "activity-tab.html" %}
-
-<div class="tab-pane" id="history">
-{% include "last-changes-content.html" %}
-<a class="btn btn-link" href="{% url 'changes' %}?{{ last_changes_url }}">{% trans "Browse all changes" %}</a>
-</div>
 
 </div>
 

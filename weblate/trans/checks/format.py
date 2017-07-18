@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 import re
@@ -103,17 +103,13 @@ PYTHON_BRACE_MATCH = re.compile(
 
 
 class BaseFormatCheck(TargetCheck):
-    '''
-    Base class for fomat string checks.
-    '''
+    """Base class for fomat string checks."""
     regexp = None
     default_disabled = True
     severity = 'danger'
 
     def check_target_unit(self, sources, targets, unit):
-        '''
-        Checks single unit, handling plurals.
-        '''
+        """Check single unit, handling plurals."""
         # Special case languages with single plural form
         if len(sources) > 1 and len(targets) == 1:
             return self.check_format(
@@ -149,15 +145,13 @@ class BaseFormatCheck(TargetCheck):
         return False
 
     def cleanup_string(self, text):
-        """Removes locale specific code from format string"""
+        """Remove locale specific code from format string"""
         if '\'' in text:
             return text.replace('\'', '')
         return text
 
     def check_format(self, source, target, ignore_missing):
-        '''
-        Generic checker for format strings.
-        '''
+        """Generic checker for format strings."""
         if len(target) == 0 or len(source) == 0:
             return False
 
@@ -200,9 +194,7 @@ class BaseFormatCheck(TargetCheck):
         raise NotImplementedError()
 
     def check_single(self, source, target, unit):
-        '''
-        We don't check target strings here.
-        '''
+        """We don't check target strings here."""
         return False
 
     def check_highlight(self, source, unit):
@@ -216,9 +208,7 @@ class BaseFormatCheck(TargetCheck):
 
 
 class PythonFormatCheck(BaseFormatCheck):
-    '''
-    Check for Python format string
-    '''
+    """Check for Python format string"""
     check_id = 'python_format'
     name = _('Python format')
     description = _('Python format string does not match source')
@@ -229,9 +219,7 @@ class PythonFormatCheck(BaseFormatCheck):
 
 
 class PHPFormatCheck(BaseFormatCheck):
-    '''
-    Check for PHP format string
-    '''
+    """Check for PHP format string"""
     check_id = 'php_format'
     name = _('PHP format')
     description = _('PHP format string does not match source')
@@ -242,9 +230,7 @@ class PHPFormatCheck(BaseFormatCheck):
 
 
 class CFormatCheck(BaseFormatCheck):
-    '''
-    Check for C format string
-    '''
+    """Check for C format string"""
     check_id = 'c_format'
     name = _('C format')
     description = _('C format string does not match source')
@@ -254,19 +240,26 @@ class CFormatCheck(BaseFormatCheck):
         return '$' not in string and string != '%'
 
 
+class PerlFormatCheck(BaseFormatCheck):
+    """Check for Perl format string"""
+    check_id = 'perl_format'
+    name = _('Perl format')
+    description = _('Perl format string does not match source')
+    regexp = C_PRINTF_MATCH
+
+    def is_position_based(self, string):
+        return '$' not in string and string != '%'
+
+
 class JavascriptFormatCheck(CFormatCheck):
-    '''
-    Check for Javascript format string
-    '''
+    """Check for Javascript format string"""
     check_id = 'javascript_format'
     name = _('Javascript format')
     description = _('Javascript format string does not match source')
 
 
 class PythonBraceFormatCheck(BaseFormatCheck):
-    '''
-    Check for Python format string
-    '''
+    """Check for Python format string"""
     check_id = 'python_brace_format'
     name = _('Python brace format')
     description = _('Python brace format string does not match source')

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from base64 import b64decode
@@ -25,16 +25,17 @@ import subprocess
 
 from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied
+from django.http import Http404
 from django.http.response import HttpResponseServerError, HttpResponse
 from django.shortcuts import redirect
-from django.utils.six import text_type
+from django.utils.encoding import force_text
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.cache import never_cache
 
 from weblate.trans.views.helper import get_subproject
+from weblate.permissions.helpers import can_access_vcs
 
 
-GIT_HTTP_BACKEND = None
 GIT_PATHS = [
     '/usr/lib/git',
     '/usr/lib/git-core',
@@ -42,7 +43,7 @@ GIT_PATHS = [
 
 
 def find_git_http_backend():
-    """Finds git http backend"""
+    """Find git http backend"""
 
     if hasattr(find_git_http_backend, 'result'):
         return find_git_http_backend.result
@@ -62,20 +63,15 @@ def find_git_http_backend():
 
 
 def response_authenticate():
-    """
-    Returns 401 response with authenticate header.
-    """
+    """Return 401 response with authenticate header."""
     response = HttpResponse(status=401)
-    response['WWW-Authenticate'] = 'Basic realm="Git"'
+    response['WWW-Authenticate'] = 'Basic realm="Weblate Git access"'
     return response
 
 
 def authenticate(request, auth):
-    """
-    Performs authentication with HTTP Basic auth
-    """
-    if not isinstance(auth, text_type):
-        auth = auth.decode('iso-8859-1')
+    """Perform authentication with HTTP Basic auth"""
+    auth = force_text(auth, encoding='iso-8859-1')
     try:
         method, data = auth.split(None, 1)
         if method.lower() == 'basic':
@@ -102,9 +98,10 @@ def authenticate(request, auth):
 @never_cache
 @csrf_exempt
 def git_export(request, project, subproject, path):
-    """
-    Wrapper around git-http-backend to provide Git
-    repositories export over HTTP.
+    """Git HTTP server view.
+
+    Wrapper around git-http-backend to provide Git repositories export over
+    HTTP. Performs permission checks and hands over execution to the wrapper.
     """
     # Probably browser access
     if path == '':
@@ -115,22 +112,27 @@ def git_export(request, project, subproject, path):
             permanent=False
         )
 
-
     # HTTP authentication
     auth = request.META.get('HTTP_AUTHORIZATION', b'')
 
-    if auth:
-        if not authenticate(request, auth):
-            return response_authenticate()
+    if auth and not authenticate(request, auth):
+        return response_authenticate()
 
     # Permissions
     try:
         obj = get_subproject(request, project, subproject)
-    except PermissionDenied:
+    except Http404:
         if not request.user.is_authenticated():
             return response_authenticate()
         raise
+    if not can_access_vcs(request.user, obj.project):
+        raise PermissionDenied('No VCS permissions')
 
+    return run_git_http(request, obj, path)
+
+
+def run_git_http(request, obj, path):
+    """Git HTTP backend execution wrapper."""
     # Find Git HTTP backend
     git_http_backend = find_git_http_backend()
     if git_http_backend is None:
@@ -158,10 +160,7 @@ def git_export(request, project, subproject, path):
 
     # Log error
     if output_err:
-        try:
-            obj.log_error('git: {0}'.format(output_err.decode('utf-8')))
-        except UnicodeDecodeError:
-            obj.log_error('git: {0}'.format(repr(output_err)))
+        obj.log_error('git: {0}'.format(force_text(output_err)))
 
     # Handle failure
     if retcode:

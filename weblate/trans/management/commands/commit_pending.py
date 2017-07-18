@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,16 +15,17 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
 
 from datetime import timedelta
+
+from django.conf import settings
 from django.utils import timezone
 
 from weblate.trans.management.commands import WeblateLangCommand
-from weblate import appsettings
 
 
 class Command(WeblateLangCommand):
@@ -37,7 +38,7 @@ class Command(WeblateLangCommand):
             action='store',
             type=int,
             dest='age',
-            default=appsettings.COMMIT_PENDING_HOURS,
+            default=settings.COMMIT_PENDING_HOURS,
             help='Age of changes to commit in hours'
         )
 
@@ -56,5 +57,5 @@ class Command(WeblateLangCommand):
                 continue
 
             if int(options['verbosity']) >= 1:
-                self.stdout.write('Committing %s' % translation)
+                self.stdout.write('Committing {0}'.format(translation))
             translation.commit_pending(None)

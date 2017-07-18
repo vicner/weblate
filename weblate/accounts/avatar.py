@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
@@ -27,13 +27,13 @@ import os.path
 from six.moves.urllib.request import Request, urlopen
 from six.moves.urllib.parse import quote
 
+from django.conf import settings
 from django.contrib.staticfiles import finders
 from django.core.cache import caches, InvalidCacheBackendError
 from django.utils.html import escape
 from django.utils.safestring import mark_safe
 from django.utils.translation import pgettext
 from django.core.urlresolvers import reverse
-from django.conf import settings
 
 try:
     import libravatar  # pylint: disable=import-error
@@ -43,14 +43,11 @@ except ImportError:
 
 from weblate import USER_AGENT
 from weblate.logger import LOGGER
-from weblate import appsettings
 from weblate.utils.errors import report_error
 
 
 def avatar_for_email(email, size=80, skip_cache=False):
-    """
-    Generates url for avatar.
-    """
+    """Generate url for avatar."""
 
     # Safely handle blank email
     if email == '':
@@ -74,16 +71,16 @@ def avatar_for_email(email, size=80, skip_cache=False):
         url = libravatar.libravatar_url(
             email=email,
             https=True,
-            default=appsettings.AVATAR_DEFAULT_IMAGE,
+            default=settings.AVATAR_DEFAULT_IMAGE,
             size=size
         )
 
     else:
         # Fallback to standard method
         url = "{0}avatar/{1}?d={2}&s={3}".format(
-            appsettings.AVATAR_URL_PREFIX,
+            settings.AVATAR_URL_PREFIX,
             mail_hash,
-            quote(appsettings.AVATAR_DEFAULT_IMAGE),
+            quote(settings.AVATAR_DEFAULT_IMAGE),
             str(size),
         )
 
@@ -94,9 +91,7 @@ def avatar_for_email(email, size=80, skip_cache=False):
 
 
 def get_fallback_avatar_url(size):
-    """
-    Returns URL of fallback avatar.
-    """
+    """Return URL of fallback avatar."""
     return os.path.join(
         settings.STATIC_URL,
         'weblate-{0}.png'.format(size)
@@ -104,18 +99,14 @@ def get_fallback_avatar_url(size):
 
 
 def get_fallback_avatar(size):
-    """
-    Returns fallback avatar.
-    """
+    """Return fallback avatar."""
     filename = finders.find('weblate-{0}.png'.format(size))
     with open(filename, 'rb') as handle:
         return handle.read()
 
 
 def get_avatar_image(request, user, size):
-    """
-    Returns avatar image from cache (if available) or downloads it.
-    """
+    """Return avatar image from cache (if available) or download it."""
 
     cache_key = '-'.join((
         'avatar-img',
@@ -151,9 +142,7 @@ def get_avatar_image(request, user, size):
 
 
 def download_avatar_image(user, size):
-    """
-    Downloads avatar image from remote server.
-    """
+    """Download avatar image from remote server."""
     url = avatar_for_email(user.email, size)
     request = Request(url)
     request.timeout = 0.5
@@ -167,9 +156,7 @@ def download_avatar_image(user, size):
 
 
 def get_user_display(user, icon=True, link=False):
-    """
-    Nicely formats user for display.
-    """
+    """Nicely format user for display."""
     # Did we get any user?
     if user is None:
         # None user, probably remotely triggered action
@@ -186,7 +173,7 @@ def get_user_display(user, icon=True, link=False):
     full_name = escape(full_name)
 
     # Icon requested?
-    if icon and appsettings.ENABLE_AVATARS:
+    if icon and settings.ENABLE_AVATARS:
         if user is None or user.email == 'noreply@weblate.org':
             avatar = get_fallback_avatar_url(32)
         else:

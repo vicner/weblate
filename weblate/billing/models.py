@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
@@ -30,7 +30,7 @@ from django.utils.translation import ugettext_lazy as _
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils import timezone
 
-from weblate.trans.models import Project, SubProject, Change
+from weblate.trans.models import Project, SubProject, Change, Unit
 from weblate.lang.models import Language
 
 
@@ -135,7 +135,7 @@ class Billing(models.Model):
 
     def count_words(self):
         return sum(
-            [p.get_total_words() for p in self.projects.all()]
+            [p.get_source_words() for p in self.projects.all()]
         )
 
     def display_words(self):
@@ -176,12 +176,54 @@ class Billing(models.Model):
             )
         )
     in_limits.boolean = True
+    # Translators: Whether the package is inside actual (hard) limits
+    in_limits.short_description = _('In limits')
+
+    def unit_count(self):
+        return Unit.objects.filter(
+            translation__subproject__project__in=self.projects.all()
+        ).count()
+    unit_count.short_description = _('Number of strings')
+
+    def last_invoice(self):
+        try:
+            invoice = self.invoice_set.order_by('-start')[0]
+            return '{0} - {1}'.format(invoice.start, invoice.end)
+        except IndexError:
+            return _('N/A')
+    last_invoice.short_description = _('Last invoice')
+
+    def in_display_limits(self):
+        return (
+            (
+                self.plan.display_limit_repositories == 0 or
+                self.count_repositories() <=
+                self.plan.display_limit_repositories
+            ) and
+            (
+                self.plan.display_limit_projects == 0 or
+                self.count_projects() <= self.plan.display_limit_projects
+            ) and
+            (
+                self.plan.display_limit_strings == 0 or
+                self.count_strings() <= self.plan.display_limit_strings
+            ) and
+            (
+                self.plan.display_limit_languages == 0 or
+                self.count_languages() <= self.plan.display_limit_languages
+            )
+        )
+    in_display_limits.boolean = True
+    # Translators: Whether the package is inside displayed (soft) limits
+    in_display_limits.short_description = _('In display limits')
 
 
 @python_2_unicode_compatible
 class Invoice(models.Model):
     CURRENCY_EUR = 0
     CURRENCY_BTC = 1
+    CURRENCY_USD = 2
+    CURRENCY_CZK = 3
 
     billing = models.ForeignKey(Billing)
     start = models.DateField()
@@ -191,6 +233,8 @@ class Invoice(models.Model):
         choices=(
             (CURRENCY_EUR, 'EUR'),
             (CURRENCY_BTC, 'mBTC'),
+            (CURRENCY_USD, 'USD'),
+            (CURRENCY_CZK, 'CZK'),
         ),
         default=CURRENCY_EUR,
     )
@@ -201,7 +245,10 @@ class Invoice(models.Model):
         ordering = ['billing', '-start']
 
     def __str__(self):
-        return '{0} - {1}: {2}'.format(self.start, self.end, self.billing)
+        return '{0} - {1}: {2}'.format(
+            self.start, self.end,
+            self.billing if self.billing_id else None
+        )
 
     @property
     def filename(self):
@@ -216,7 +263,7 @@ class Invoice(models.Model):
         if self.end <= self.start:
             raise ValidationError('Start has be to before end!')
 
-        if self.billing is None:
+        if not self.billing_id:
             return
 
         overlapping = Invoice.objects.filter(

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 import os.path
@@ -37,19 +37,21 @@ from weblate.api.serializers import (
     ProjectSerializer, ComponentSerializer, TranslationSerializer,
     LanguageSerializer, LockRequestSerializer, LockSerializer,
     RepoRequestSerializer, StatisticsSerializer, UnitSerializer,
-    ChangeSerializer,
+    ChangeSerializer, SourceSerializer, ScreenshotSerializer,
+    UploadRequestSerializer, ScreenshotFileSerializer,
 )
 from weblate.trans.exporters import EXPORTERS
 from weblate.trans.models import (
-    Project, SubProject, Translation, Change, Unit,
+    Project, SubProject, Translation, Change, Unit, Source,
 )
-from weblate.trans.permissions import (
+from weblate.permissions.helpers import (
     can_upload_translation, can_lock_subproject, can_see_repository_status,
     can_commit_translation, can_update_translation, can_reset_translation,
-    can_push_translation,
+    can_push_translation, can_overwrite_translation, can_change_screenshot,
 )
 from weblate.trans.stats import get_project_stats
 from weblate.lang.models import Language
+from weblate.screenshots.models import Screenshot
 from weblate.trans.views.helper import download_translation_file
 from weblate import get_doc_url
 
@@ -114,24 +116,37 @@ class MultipleFieldMixin(object):
         return get_object_or_404(queryset, **lookup)
 
 
-class WeblateViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    Allows to skip content negotiation for certain requests.
-    """
+class DownloadViewSet(viewsets.ReadOnlyModelViewSet):
     raw_urls = ()
+    raw_formats = {}
 
     def perform_content_negotiation(self, request, force=False):
         """Custom content negotiation"""
         if request.resolver_match.url_name in self.raw_urls:
             fmt = self.format_kwarg or request.query_params.get('format')
-            if fmt is None or fmt in EXPORTERS:
+            if fmt is None or fmt in self.raw_formats:
                 renderers = self.get_renderers()
                 return (renderers[0], renderers[0].media_type)
-            raise Http404('Not supported exporter')
-        return super(WeblateViewSet, self).perform_content_negotiation(
+            raise Http404('Not supported format')
+        return super(DownloadViewSet, self).perform_content_negotiation(
             request, force
         )
 
+    def download_file(self, filename, content_type):
+        """Wrapper for file download"""
+        with open(filename, 'rb') as handle:
+            response = HttpResponse(
+                handle.read(),
+                content_type=content_type
+            )
+        response['Content-Disposition'] = 'attachment; filename="{0}"'.format(
+            os.path.basename(filename)
+        )
+        return response
+
+
+class WeblateViewSet(DownloadViewSet):
+    """Allow to skip content negotiation for certain requests."""
     def repository_operation(self, request, obj, project, operation):
         permission_check, method = REPO_OPERATIONS[operation]
 
@@ -229,8 +244,7 @@ class WeblateViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class ProjectViewSet(WeblateViewSet):
-    """Translation projects API.
-    """
+    """Translation projects API."""
 
     queryset = Project.objects.none()
     serializer_class = ProjectSerializer
@@ -280,8 +294,8 @@ class ProjectViewSet(WeblateViewSet):
 
 
 class ComponentViewSet(MultipleFieldMixin, WeblateViewSet):
-    """Translation components API.
-    """
+    """Translation components API."""
+
     queryset = SubProject.objects.none()
     serializer_class = ComponentSerializer
     lookup_fields = ('project__slug', 'slug')
@@ -307,24 +321,9 @@ class ComponentViewSet(MultipleFieldMixin, WeblateViewSet):
             serializer = LockRequestSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
 
-            if serializer.validated_data['lock']:
-                obj.do_lock(request.user)
-            else:
-                obj.do_unlock(request.user)
+            obj.do_lock(request.user, serializer.validated_data['lock'])
 
         return Response(data=LockSerializer(obj).data)
-
-    def download_file(self, filename, content_type):
-        """Wrapper for file download"""
-        with open(filename, 'rb') as handle:
-            response = HttpResponse(
-                handle.read(),
-                content_type=content_type
-            )
-        response['Content-Disposition'] = 'attachment; filename="{0}"'.format(
-            os.path.basename(filename)
-        )
-        return response
 
     @detail_route(methods=['get'])
     def monolingual_base(self, request, **kwargs):
@@ -398,8 +397,8 @@ class ComponentViewSet(MultipleFieldMixin, WeblateViewSet):
 
 
 class TranslationViewSet(MultipleFieldMixin, WeblateViewSet):
-    """Translation components API.
-    """
+    """Translation components API."""
+
     queryset = Translation.objects.none()
     serializer_class = TranslationSerializer
     lookup_fields = (
@@ -408,6 +407,7 @@ class TranslationViewSet(MultipleFieldMixin, WeblateViewSet):
     raw_urls = (
         'translation-file',
     )
+    raw_formats = EXPORTERS
 
     def get_queryset(self):
         return Translation.objects.prefetch().filter(
@@ -425,9 +425,11 @@ class TranslationViewSet(MultipleFieldMixin, WeblateViewSet):
             parsers.FormParser,
             parsers.FileUploadParser,
         ),
+        serializer_class=UploadRequestSerializer
     )
     def file(self, request, **kwargs):
         obj = self.get_object()
+        project = obj.subproject.project
         if request.method == 'GET':
             fmt = self.format_kwarg or request.query_params.get('format')
             return download_translation_file(obj, fmt)
@@ -439,13 +441,28 @@ class TranslationViewSet(MultipleFieldMixin, WeblateViewSet):
         if 'file' not in request.data:
             raise ParseError('Missing file parameter')
 
-        ret, count = obj.merge_upload(
+        serializer = UploadRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        if (serializer.validated_data['overwrite'] and
+                not can_overwrite_translation(request.user, project)):
+            raise PermissionDenied()
+
+        not_found, skipped, accepted, total = obj.merge_upload(
             request,
             request.data['file'],
-            False
+            serializer.validated_data['overwrite'],
         )
 
-        return Response(data={'result': ret, 'count': count})
+        return Response(data={
+            'not_found': not_found,
+            'skipped': skipped,
+            'accepted': accepted,
+            'total': total,
+            # Compatibility with older less detailed API
+            'result': accepted > 0,
+            'count': total,
+        })
 
     @detail_route(methods=['get'])
     def statistics(self, request, **kwargs):
@@ -490,8 +507,8 @@ class TranslationViewSet(MultipleFieldMixin, WeblateViewSet):
 
 
 class LanguageViewSet(viewsets.ReadOnlyModelViewSet):
-    """Languages API.
-    """
+    """Languages API."""
+
     queryset = Language.objects.none()
     serializer_class = LanguageSerializer
     lookup_field = 'code'
@@ -502,6 +519,7 @@ class LanguageViewSet(viewsets.ReadOnlyModelViewSet):
 
 class UnitViewSet(viewsets.ReadOnlyModelViewSet):
     """Units API"""
+
     queryset = Unit.objects.none()
     serializer_class = UnitSerializer
 
@@ -512,8 +530,70 @@ class UnitViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
 
+class SourceViewSet(viewsets.ReadOnlyModelViewSet):
+    """Sources API"""
+
+    queryset = Source.objects.none()
+    serializer_class = SourceSerializer
+
+    def get_queryset(self):
+        acl_projects = Project.objects.get_acl_ids(self.request.user)
+        return Source.objects.filter(
+            subproject__project__in=acl_projects
+        )
+
+
+class ScreenshotViewSet(DownloadViewSet):
+    """Screenshots API"""
+
+    queryset = Screenshot.objects.none()
+    serializer_class = ScreenshotSerializer
+    raw_urls = (
+        'screenshot-file',
+    )
+
+    def get_queryset(self):
+        acl_projects = Project.objects.get_acl_ids(self.request.user)
+        return Screenshot.objects.filter(
+            component__project__in=acl_projects
+        )
+
+    @detail_route(
+        methods=['get', 'put', 'post'],
+        parser_classes=(
+            parsers.MultiPartParser,
+            parsers.FormParser,
+            parsers.FileUploadParser,
+        ),
+        serializer_class=ScreenshotFileSerializer,
+    )
+    def file(self, request, **kwargs):
+        obj = self.get_object()
+        if request.method == 'GET':
+            return self.download_file(
+                obj.image.path,
+                'application/binary',
+            )
+
+        if not can_change_screenshot(request.user, obj.component.project):
+            raise PermissionDenied()
+
+        serializer = ScreenshotFileSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        obj.image.save(
+            serializer.validated_data['image'].name,
+            serializer.validated_data['image']
+        )
+
+        return Response(data={
+            'result': True,
+        })
+
+
 class ChangeViewSet(viewsets.ReadOnlyModelViewSet):
     """Changes API"""
+
     queryset = Change.objects.none()
     serializer_class = ChangeSerializer
 

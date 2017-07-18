@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
@@ -104,6 +104,7 @@ class Command(WeblateTranslationCommand):
 
         result = auto_translate(
             user, translation, source,
-            options['inconsistent'], options['overwrite']
+            options['inconsistent'], options['overwrite'],
+            check_acl=False
         )
         self.stdout.write('Updated {0} units'.format(result))

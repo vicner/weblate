@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,13 +15,39 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 import re
 
 from django.conf import settings
+from django.contrib import auth
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import AnonymousUser
+from django.utils.functional import SimpleLazyObject
+
+from weblate.accounts.models import get_anonymous
+
+
+def get_user(request):
+    """Based on django.contrib.auth.middleware.get_user
+
+    Adds handling of anonymous user which is stored in database.
+    """
+    # pylint: disable=W0212
+    if not hasattr(request, '_cached_user'):
+        user = auth.get_user(request)
+        if isinstance(user, AnonymousUser):
+            user = get_anonymous()
+
+        request._cached_user = user
+    return request._cached_user
+
+
+class AuthenticationMiddleware(object):
+    """Copy of django.contrib.auth.middleware.AuthenticationMiddleware"""
+    def process_request(self, request):
+        request.user = SimpleLazyObject(lambda: get_user(request))
 
 
 class RequireLoginMiddleware(object):
@@ -56,24 +82,21 @@ class RequireLoginMiddleware(object):
         )
 
     def get_setting_re(self, name, default):
-        '''
-        Grabs regexp list from settings and compiles them
-        '''
+        """Grab regexp list from settings and compiles them"""
         return tuple(
             [re.compile(url) for url in getattr(settings, name, default)]
         )
 
     def process_view(self, request, view_func, view_args, view_kwargs):
-        '''
-        Checks request whether it needs to enforce login for this URL based
+        """Check request whether it needs to enforce login for this URL based
         on defined parameters.
-        '''
+        """
         # No need to process URLs if not configured
         if len(self.required) == 0:
             return None
 
         # No need to process URLs if user already logged in
-        if request.user.is_authenticated():
+        if request.user.is_authenticated:
             return None
 
         # An exception match should immediately return None

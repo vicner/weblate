@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,12 +15,44 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from django.conf.urls import url, include
 
+import social_django.views
+
 import weblate.accounts.views
+
+# Follows copy of social_django.urls with few changes:
+# - authentication requires POST (issue submitted upstream)
+# - authentication stores current user (to avoid CSRF on complete)
+# - removed some configurability (just to avoid additional deps)
+# - the association_id has to be numeric (patch accepted upstream)
+social_urls = [
+    # authentication / association
+    url(
+        r'^login/(?P<backend>[^/]+)/$',
+        weblate.accounts.views.social_auth,
+        name='begin'
+    ),
+    url(
+        r'^complete/(?P<backend>[^/]+)/$',
+        weblate.accounts.views.social_complete,
+        name='complete'
+    ),
+    # disconnection
+    url(
+        r'^disconnect/(?P<backend>[^/]+)/$',
+        social_django.views.disconnect,
+        name='disconnect'
+    ),
+    url(
+        r'^disconnect/(?P<backend>[^/]+)/(?P<association_id>\d+)/$',
+        social_django.views.disconnect,
+        name='disconnect_individual'
+    ),
+]
 
 
 urlpatterns = [
@@ -54,8 +86,9 @@ urlpatterns = [
         name='unwatch'
     ),
     url(r'^remove/', weblate.accounts.views.user_remove, name='remove'),
+    url(r'^confirm/', weblate.accounts.views.confirm, name='confirm'),
     url(r'^login/$', weblate.accounts.views.weblate_login, name='login'),
     url(r'^register/$', weblate.accounts.views.register, name='register'),
     url(r'^email/$', weblate.accounts.views.email_login, name='email_login'),
-    url(r'', include('social.apps.django_app.urls', namespace='social')),
+    url(r'', include(social_urls, namespace='social')),
 ]

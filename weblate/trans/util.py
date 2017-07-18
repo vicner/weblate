@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,18 +15,22 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
 
-import hashlib
 import os
 import sys
 import unicodedata
 
-import six
-from six.moves.urllib.parse import urlparse
+from django.contrib.admin import ModelAdmin
+from django.core.cache import cache
+from django.http import HttpResponseRedirect
+from django.shortcuts import resolve_url, render as django_render, redirect
+from django.utils.encoding import force_text
+from django.utils.http import is_safe_url
+from django.utils.translation import ugettext as _, ugettext_lazy
 
 try:
     import pyuca  # pylint: disable=import-error
@@ -34,12 +38,9 @@ try:
 except ImportError:
     HAS_PYUCA = False
 
-from django.contrib.admin import ModelAdmin
-from django.core.cache import cache
-from django.http import HttpResponseRedirect
-from django.shortcuts import resolve_url, render as django_render
-from django.utils.encoding import force_text
-from django.utils.translation import ugettext as _
+
+import six
+from six.moves.urllib.parse import urlparse
 
 from weblate.trans.data import data_dir
 
@@ -48,20 +49,17 @@ PLURAL_SEPARATOR = '\x1e\x1e'
 # List of default domain names on which warn user
 DEFAULT_DOMAINS = ('example.net', 'example.com')
 
-
-def calculate_checksum(source, context):
-    """Calculates checksum identifying translation."""
-    md5 = hashlib.md5()
-    if source is not None:
-        md5.update(source.encode('utf-8'))
-    md5.update(context.encode('utf-8'))
-    return md5.hexdigest()
+PRIORITY_CHOICES = (
+    (60, ugettext_lazy('Very high')),
+    (80, ugettext_lazy('High')),
+    (100, ugettext_lazy('Medium')),
+    (120, ugettext_lazy('Low')),
+    (140, ugettext_lazy('Very low')),
+)
 
 
 def is_plural(text):
-    '''
-    Checks whether string is plural form.
-    '''
+    """Check whether string is plural form."""
     return text.find(PLURAL_SEPARATOR) != -1
 
 
@@ -74,9 +72,7 @@ def join_plural(text):
 
 
 def get_string(text):
-    '''
-    Returns correctly formatted string from ttkit unit data.
-    '''
+    """Return correctly formatted string from ttkit unit data."""
     # Check for null target (happens with XLIFF)
     if text is None:
         return ''
@@ -86,18 +82,17 @@ def get_string(text):
 
 
 def is_repo_link(val):
-    '''
-    Checks whether repository is just a link for other one.
-    '''
+    """Check whether repository is just a link for other one."""
     return val.startswith('weblate://')
 
 
 def get_distinct_translations(units):
-    '''
-    Returns list of distinct translations. It should be possible to use
+    """Return list of distinct translations.
+
+    It should be possible to use
     distinct('target') since Django 1.4, but it is not supported with MySQL, so
     let's emulate that based on presumption we won't get too many results.
-    '''
+    """
     targets = {}
     result = []
     for unit in units:
@@ -109,24 +104,20 @@ def get_distinct_translations(units):
 
 
 def translation_percent(translated, total):
-    '''
-    Returns translation percentage.
-    '''
+    """Return translation percentage."""
     if total == 0 or total is None:
         return 0.0
     perc = round(1000 * translated / total) / 10.0
     # Avoid displaying misleading rounded 0.0% or 100.0%
     if perc == 0.0 and translated != 0:
         return 0.1
-    if perc == 100.0 and translated != total:
+    if perc == 100.0 and translated < total:
         return 99.9
     return perc
 
 
 def add_configuration_error(name, message):
-    """
-    Logs configuration error.
-    """
+    """Log configuration error."""
     errors = cache.get('configuration-errors', [])
     errors.append({
         'name': name,
@@ -136,16 +127,12 @@ def add_configuration_error(name, message):
 
 
 def get_configuration_errors():
-    """
-    Returns all configuration errors.
-    """
+    """Return all configuration errors."""
     return cache.get('configuration-errors', [])
 
 
 def get_clean_env(extra=None):
-    """
-    Returns cleaned up environment for subprocess execution.
-    """
+    """Return cleaned up environment for subprocess execution."""
     environ = {
         'LANG': 'en_US.UTF-8',
         'HOME': data_dir('home'),
@@ -166,9 +153,7 @@ def get_clean_env(extra=None):
 
 
 def cleanup_repo_url(url):
-    """
-    Removes credentials from repository URL.
-    """
+    """Remove credentials from repository URL."""
     parsed = urlparse(url)
     if parsed.username and parsed.password:
         return url.replace(
@@ -189,18 +174,14 @@ def cleanup_repo_url(url):
 
 
 def redirect_param(location, params, *args, **kwargs):
-    """
-    Redirects to a URL with parameters.
-    """
+    """Redirect to a URL with parameters."""
     return HttpResponseRedirect(
         resolve_url(location, *args, **kwargs) + params
     )
 
 
 def cleanup_path(path):
-    """
-    Removes leading ./ or / from path.
-    """
+    """Remove leading ./ or / from path."""
     if path.startswith('./'):
         path = path[2:]
     if path.startswith('/'):
@@ -209,7 +190,7 @@ def cleanup_path(path):
 
 
 def get_project_description(project):
-    """Returns verbose description for project translation"""
+    """Return verbose description for project translation"""
     return _(
         '{0} is translated into {1} languages using Weblate. '
         'Join the translation or start translating your own project.',
@@ -223,13 +204,13 @@ def render(request, template, context=None, status=None):
     """Wrapper around Django render to extend context"""
     if context is None:
         context = {}
-    if 'project' in context:
+    if 'project' in context and context['project'] is not None:
         context['description'] = get_project_description(context['project'])
     return django_render(request, template, context, status=status)
 
 
 def path_separator(path):
-    """Always use / as path separator for consistency"""
+    """Alway use / as path separator for consistency"""
     if os.path.sep != '/':
         return path.replace(os.path.sep, '/')
     return path
@@ -251,25 +232,22 @@ def sort_unicode(choices, key):
 
 
 def remove_accents(input_str):
-    """
-    Removes accents from a string.
-    """
+    """Remove accents from a string."""
     nkfd_form = unicodedata.normalize('NFKD', force_text(input_str))
     only_ascii = nkfd_form.encode('ASCII', 'ignore')
     return only_ascii
 
 
 def sort_choices(choices):
-    '''
-    Sorts choices alphabetically.
+    """Sort choices alphabetically.
 
     Either using cmp or pyuca.
-    '''
+    """
     return sort_unicode(choices, lambda tup: tup[1])
 
 
 def sort_objects(objects):
-    """Sorts objects alphabetically"""
+    """Sort objects alphabetically"""
     return sort_unicode(objects, force_text)
 
 
@@ -281,10 +259,19 @@ class WeblateAdmin(ModelAdmin):
 
 
 def check_domain(domain):
-    """Checks whether site domain is correctly set"""
+    """Check whether site domain is correctly set"""
     return (
         domain not in DEFAULT_DOMAINS and
         not domain.startswith('http:') and
         not domain.startswith('https:') and
         not domain.endswith('/')
     )
+
+
+def redirect_next(next_url, fallback):
+    """Redirect to next URL from request after validating it."""
+    if (next_url is None or
+            not is_safe_url(next_url) or
+            not next_url.startswith('/')):
+        return redirect(fallback)
+    return HttpResponseRedirect(next_url)

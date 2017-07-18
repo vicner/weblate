@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,16 +15,15 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-'''
-Font handling wrapper.
-'''
+"""Font handling wrapper."""
 import os.path
+
+from django.conf import settings
 
 from PIL import ImageFont
 
-from weblate import appsettings
 
 # List of chars in base DejaVu font, otherwise we use DroidSansFallback
 BASE_CHARS = frozenset((
@@ -672,17 +671,13 @@ FONT_CACHE = {}
 
 
 def is_base(text):
-    '''
-    Checks whether text should use CJK fonts.
-    '''
+    """Check whether text should use CJK fonts."""
     return min([ord(char) in BASE_CHARS for char in text])
 
 
 def get_font(size, bold=False, base_font=True):
-    '''
-    Returns PIL font object matching parameters.
-    '''
-    cache_key = '%d-%s-%s' % (size, bold, base_font)
+    """Return PIL font object matching parameters."""
+    cache_key = '{0:d}-{1}-{2}'.format(size, bold, base_font)
     if cache_key not in FONT_CACHE:
         if base_font:
             if bold:
@@ -693,7 +688,7 @@ def get_font(size, bold=False, base_font=True):
             name = 'DroidSansFallback.ttf'
 
         FONT_CACHE[cache_key] = ImageFont.truetype(
-            os.path.join(appsettings.TTF_PATH, name),
+            os.path.join(settings.TTF_PATH, name),
             size
         )
     return FONT_CACHE[cache_key]

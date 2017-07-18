@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,18 +15,21 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from django.contrib.auth.models import User, Group
+from django.core.files import File
 from django.core.urlresolvers import reverse
 
 from rest_framework.test import APITestCase
 
-from weblate.trans.models import Project, Change, Unit
+from weblate.screenshots.models import Screenshot
+from weblate.trans.models import Project, Change, Unit, Source
 from weblate.trans.tests.utils import RepoTestMixin, get_test_file
 
 TEST_PO = get_test_file('cs.po')
+TEST_SCREENSHOT = get_test_file('screenshot.png')
 
 
 class APIBaseTest(APITestCase, RepoTestMixin):
@@ -419,7 +422,7 @@ class TranslationAPITest(APIBaseTest):
             ),
             {'file': open(TEST_PO, 'rb')},
         )
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 404)
 
     def test_upload(self):
         self.authenticate()
@@ -432,7 +435,35 @@ class TranslationAPITest(APIBaseTest):
         )
         self.assertEqual(
             response.data,
-            {'count': 5, 'result': True}
+            {
+                'accepted': 1,
+                'count': 5,
+                'not_found': 0,
+                'result': True,
+                'skipped': 0,
+                'total': 5
+            }
+        )
+
+    def test_upload_overwrite(self):
+        self.test_upload()
+        response = self.client.put(
+            reverse(
+                'api:translation-file',
+                kwargs=self.translation_kwargs
+            ),
+            {'file': open(TEST_PO, 'rb'), 'overwrite': 1},
+        )
+        self.assertEqual(
+            response.data,
+            {
+                'accepted': 1,
+                'count': 5,
+                'not_found': 0,
+                'result': True,
+                'skipped': 0,
+                'total': 5
+            }
         )
 
     def test_upload_invalid(self):
@@ -522,6 +553,97 @@ class UnitAPITest(APIBaseTest):
             'translation',
             response.data,
         )
+
+
+class SourceAPITest(APIBaseTest):
+    def test_list_sources(self):
+        response = self.client.get(
+            reverse('api:source-list')
+        )
+        self.assertEqual(response.data['count'], 4)
+
+    def test_get_source(self):
+        response = self.client.get(
+            reverse(
+                'api:source-detail',
+                kwargs={'pk': Source.objects.all()[0].pk}
+            )
+        )
+        self.assertIn(
+            'component',
+            response.data,
+        )
+
+
+class ScreenshotAPITest(APIBaseTest):
+    def setUp(self):
+        super(ScreenshotAPITest, self).setUp()
+        shot = Screenshot.objects.create(
+            name='Obrazek',
+            component=self.subproject
+        )
+        shot.image.save(
+            'screenshot.png',
+            File(open(TEST_SCREENSHOT, 'rb'))
+        )
+
+    def test_list_screenshots(self):
+        response = self.client.get(
+            reverse('api:screenshot-list')
+        )
+        self.assertEqual(response.data['count'], 1)
+
+    def test_get_screenshot(self):
+        response = self.client.get(
+            reverse(
+                'api:screenshot-detail',
+                kwargs={'pk': Screenshot.objects.all()[0].pk}
+            )
+        )
+        self.assertIn(
+            'file_url',
+            response.data,
+        )
+
+    def test_download(self):
+        response = self.client.get(
+            reverse(
+                'api:screenshot-file',
+                kwargs={'pk': Screenshot.objects.all()[0].pk}
+            )
+        )
+        self.assertContains(
+            response, b'PNG',
+        )
+
+    def test_upload(self, superuser=True, code=200, filename=TEST_SCREENSHOT):
+        self.authenticate(superuser)
+        Screenshot.objects.all()[0].image.delete()
+
+        self.assertEqual(Screenshot.objects.all()[0].image, '')
+        with open(filename, 'rb') as handle:
+            response = self.client.post(
+                reverse(
+                    'api:screenshot-file',
+                    kwargs={
+                        'pk': Screenshot.objects.all()[0].pk,
+                    }
+                ),
+                {
+                    'image': handle,
+                }
+            )
+        self.assertEqual(response.status_code, code)
+        if code == 200:
+            self.assertTrue(response.data['result'])
+
+            self.assertIn('.png', Screenshot.objects.all()[0].image.path)
+
+    def test_upload_denied(self):
+        self.test_upload(False, 403)
+
+    def test_upload_invalid(self):
+        self.test_upload(True, 400, TEST_PO)
 
 
 class ChangeAPITest(APIBaseTest):

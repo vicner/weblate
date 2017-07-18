@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,12 +15,10 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""
-Tests for language manipulations.
-"""
+"""Test for language manipulations."""
 
 import os.path
 import gettext
@@ -30,10 +28,11 @@ from django.core.management import call_command
 from django.utils.encoding import force_text
 from weblate.lang.models import Language, get_plural_type
 from weblate.lang import data
-from weblate.trans.tests.test_views import ViewTestCase
+from weblate.trans.tests.test_models import BaseTestCase
+from weblate.trans.tests.test_views import FixtureTestCase
 
 
-class LanguagesTest(TestCase):
+class LanguagesTest(BaseTestCase):
     TEST_LANGUAGES = (
         (
             'cs_CZ',
@@ -159,6 +158,20 @@ class LanguagesTest(TestCase):
             'Chinese (Simplified)',
         ),
         (
+            'zh_HANT',
+            'zh_Hant',
+            'ltr',
+            '0',
+            'Chinese (Traditional)',
+        ),
+        (
+            'zh-HANT',
+            'zh_Hant',
+            'ltr',
+            '0',
+            'Chinese (Traditional)',
+        ),
+        (
             'zh-CN@test',
             'zh_CN@test',
             'ltr',
@@ -171,6 +184,27 @@ class LanguagesTest(TestCase):
             'ltr',
             '0',
             'Chinese (Simplified)',
+        ),
+        (
+            'zh_rCN',
+            'zh_Hans',
+            'ltr',
+            '0',
+            'Chinese (Simplified)',
+        ),
+        (
+            'zh_HK',
+            'zh_Hant_HK',
+            'ltr',
+            '0',
+            'Chinese (Hong Kong)',
+        ),
+        (
+            'zh_Hant-rHK',
+            'zh_Hant_HK',
+            'ltr',
+            '0',
+            'Chinese (Hong Kong)',
         ),
         (
             'ar',
@@ -206,9 +240,7 @@ class LanguagesTest(TestCase):
     )
 
     def test_auto_create(self):
-        '''
-        Tests that auto create correctly handles languages
-        '''
+        """Test that auto create correctly handles languages"""
         for original, expected, direction, plural, name in self.TEST_LANGUAGES:
             # Create language
             lang = Language.objects.auto_get_or_create(original)
@@ -216,13 +248,13 @@ class LanguagesTest(TestCase):
             self.assertEqual(
                 lang.code,
                 expected,
-                'Invalid code for %s: %s' % (original, lang.code)
+                'Invalid code for {0}: {1}'.format(original, lang.code)
             )
             # Check direction
             self.assertEqual(
                 lang.direction,
                 direction,
-                'Invalid direction for %s' % original
+                'Invalid direction for {0}'.format(original)
             )
             # Check plurals
             self.assertEqual(
@@ -239,9 +271,7 @@ class LanguagesTest(TestCase):
             self.assertEqual(force_text(lang), name)
 
     def test_plurals(self):
-        '''
-        Test whether plural form is correctly calculated.
-        '''
+        """Test whether plural form is correctly calculated."""
         lang = Language.objects.get(code='cs')
         self.assertEqual(
             lang.get_plural_form(),
@@ -263,24 +293,19 @@ class LanguagesTest(TestCase):
 
     def test_plural_labels(self):
         lang = Language.objects.get(code='cs')
-        self.assertEqual(
-            lang.get_plural_label(0),
-            'One (e.g. 1)'
-        )
-        self.assertEqual(
-            lang.get_plural_label(1),
-            'Few (e.g. 2, 3, 4)'
-        )
-        self.assertEqual(
-            lang.get_plural_label(2),
-            'Other (e.g. 0, 5, 6, 7, 8, 9, 10, 11, 12, 13)'
-        )
+        label = lang.get_plural_label(0)
+        self.assertIn('One', label)
+        self.assertIn('1', label)
+        label = lang.get_plural_label(1)
+        self.assertIn('Few', label)
+        self.assertIn('2, 3, 4', label)
+        label = lang.get_plural_label(2)
+        self.assertIn('Other', label)
+        self.assertIn('5, 6, 7', label)
 
 
 class CommandTest(TestCase):
-    '''
-    Tests for management commands.
-    '''
+    """Test for management commands."""
     def test_setuplang(self):
         call_command('setuplang')
         self.assertTrue(Language.objects.exists())
@@ -298,11 +323,10 @@ class CommandTest(TestCase):
 
 
 class VerifyPluralsTest(TestCase):
-    """
-    In database plural form verification.
-    """
+    """In database plural form verification."""
+
     def test_valid(self):
-        """Validates that we can name all plural equations"""
+        """Validate that we can name all plural equations"""
         for language in Language.objects.all():
             self.assertNotEqual(
                 get_plural_type(
@@ -317,10 +341,10 @@ class VerifyPluralsTest(TestCase):
             )
 
     def test_equation(self):
-        """Validates that all equations can be parsed by gettext"""
+        """Validate that all equations can be parsed by gettext"""
         # Verify we get an error on invalid syntax
         self.assertRaises(
-            SyntaxError,
+            (SyntaxError, ValueError),
             gettext.c2py,
             'n==0 ? 1 2'
         )
@@ -342,7 +366,7 @@ class VerifyPluralsTest(TestCase):
             )
 
 
-class LanguagesViewTest(ViewTestCase):
+class LanguagesViewTest(FixtureTestCase):
     def test_languages(self):
         response = self.client.get(reverse('languages'))
         self.assertContains(response, 'Czech')
@@ -382,3 +406,38 @@ class LanguagesViewTest(ViewTestCase):
             kwargs={'lang': 'nonexisting'}
         ))
         self.assertEqual(response.status_code, 404)
+
+
+class PluralsCompareTest(TestCase):
+    def test_match(self):
+        language = Language.objects.get(code='cs')
+        self.assertTrue(
+            language.same_plural(language.get_plural_form())
+        )
+
+    def test_formula(self):
+        language = Language.objects.get(code='pt')
+        self.assertTrue(
+            language.same_plural('nplurals=2; plural=(n != 1);')
+        )
+
+    def test_different_formula(self):
+        language = Language.objects.get(code='pt')
+        self.assertFalse(
+            language.same_plural('nplurals=2; plural=(n > 1);')
+        )
+
+    def test_different_count(self):
+        language = Language.objects.get(code='lt')
+        self.assertFalse(
+            language.same_plural(
+                'nplurals=4; plural=(n%10==1 ? 0 : n%10==1 && n%100!=11 ?'
+                ' 1 : n %10>=2 && (n%100<10 || n%100>=20) ? 2 : 3);'
+            )
+        )
+
+    def test_invalid(self):
+        language = Language.objects.get(code='lt')
+        self.assertFalse(
+            language.same_plural('bogus')
+        )

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,31 +15,35 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
+from __future__ import unicode_literals
 
 from difflib import SequenceMatcher
 
 
 def html_diff(old, new):
-    '''
-    Generates HTML formatted diff of two strings.
-    '''
+    """Generate HTML formatted diff of two strings."""
     diff = SequenceMatcher(None, old, new)
     result = []
     for tag, oldpos1, oldpos2, newpos1, newpos2 in diff.get_opcodes():
         if tag == 'replace':
             result.append(
-                '<del>%s</del><ins>%s</ins>' %
-                (old[oldpos1:oldpos2], new[newpos1:newpos2])
+                '<del>{0}</del><ins>{1}</ins>'.format(
+                    old[oldpos1:oldpos2], new[newpos1:newpos2]
+                )
             )
         elif tag == 'delete':
             result.append(
-                '<del>%s</del>' % old[oldpos1:oldpos2]
+                '<del>{0}</del>'.format(
+                    old[oldpos1:oldpos2]
+                )
             )
         elif tag == 'insert':
             result.append(
-                '<ins>%s</ins>' % new[newpos1:newpos2]
+                '<ins>{0}</ins>'.format(
+                    new[newpos1:newpos2]
+                )
             )
         elif tag == 'equal':
             result.append(new[newpos1:newpos2])

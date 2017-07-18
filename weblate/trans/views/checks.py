@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,14 +15,14 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-
-from six.moves.urllib.parse import urlencode
+from __future__ import unicode_literals
 
 from django.shortcuts import render
 from django.utils.translation import ugettext as _
 from django.utils.encoding import force_text
+from django.utils.http import urlencode
 from django.http import Http404
 from django.db.models import Count
 
@@ -47,9 +47,7 @@ def encode_optional(params):
 
 
 def show_checks(request):
-    '''
-    List of failing checks.
-    '''
+    """List of failing checks."""
     ignore = ('ignored' in request.GET)
     url_params = {}
 
@@ -60,11 +58,11 @@ def show_checks(request):
         ignore=ignore,
     )
 
-    if 'project' in request.GET:
+    if request.GET.get('project'):
         allchecks = allchecks.filter(project__slug=request.GET['project'])
         url_params['project'] = request.GET['project']
 
-    if 'language' in request.GET:
+    if request.GET.get('language'):
         allchecks = allchecks.filter(language__code=request.GET['language'])
         url_params['language'] = request.GET['language']
 
@@ -82,9 +80,7 @@ def show_checks(request):
 
 
 def show_check(request, name):
-    '''
-    Details about failing check.
-    '''
+    """Show details about failing check."""
     try:
         check = CHECKS[name]
     except KeyError:
@@ -102,11 +98,11 @@ def show_check(request, name):
         ignore=ignore,
     )
 
-    if 'language' in request.GET:
+    if request.GET.get('language'):
         checks = checks.filter(language__code=request.GET['language'])
         url_params['language'] = request.GET['language']
 
-    if 'project' in request.GET:
+    if request.GET.get('project') and '/' not in request.GET['project']:
         return redirect_param(
             'show_check_project',
             encode_optional(url_params),
@@ -129,9 +125,7 @@ def show_check(request, name):
 
 
 def show_check_project(request, name, project):
-    '''
-    Show checks failing in a project.
-    '''
+    """Show checks failing in a project."""
     prj = get_project(request, project)
     try:
         check = CHECKS[name]
@@ -151,7 +145,7 @@ def show_check_project(request, name, project):
     if ignore:
         url_params['ignored'] = 'true'
 
-    if 'language' in request.GET:
+    if request.GET.get('language'):
         allchecks = allchecks.filter(language__code=request.GET['language'])
         url_params['language'] = request.GET['language']
 
@@ -161,9 +155,9 @@ def show_check_project(request, name, project):
         for lang in langs:
             checks = allchecks.filter(
                 language=lang,
-            ).values_list('contentsum', flat=True)
+            ).values_list('content_hash', flat=True)
             res = Unit.objects.filter(
-                contentsum__in=checks,
+                content_hash__in=checks,
                 translation__language=lang,
                 translation__subproject__project=prj,
                 translated=True
@@ -176,7 +170,7 @@ def show_check_project(request, name, project):
         checks = allchecks.filter(
             language=None,
         ).values_list(
-            'contentsum', flat=True
+            'content_hash', flat=True
         )
         for subproject in prj.subproject_set.all():
             try:
@@ -186,7 +180,7 @@ def show_check_project(request, name, project):
             except IndexError:
                 continue
             res = Unit.objects.filter(
-                contentsum__in=checks,
+                content_hash__in=checks,
                 translation__language_id=lang_id,
                 translation__subproject=subproject
             ).values(
@@ -219,7 +213,7 @@ def show_check_project(request, name, project):
         'check_project.html',
         {
             'checks': units,
-            'title': '%s/%s' % (force_text(prj), check.name),
+            'title': '{0}/{1}'.format(force_text(prj), check.name),
             'check': check,
             'project': prj,
             'url_params': encode_optional(url_params),
@@ -228,9 +222,7 @@ def show_check_project(request, name, project):
 
 
 def show_check_subproject(request, name, project, subproject):
-    '''
-    Show checks failing in a subproject.
-    '''
+    """Show checks failing in a subproject."""
     subprj = get_subproject(request, project, subproject)
     try:
         check = CHECKS[name]
@@ -250,7 +242,7 @@ def show_check_subproject(request, name, project, subproject):
         url_params['ignored'] = 'true'
 
     if check.source:
-        url_params['type'] = check.check_id
+        url_params['type'] = check.url_id
         return redirect_param(
             'review_source',
             encode_optional(url_params),
@@ -258,8 +250,8 @@ def show_check_subproject(request, name, project, subproject):
             subproject=subprj.slug,
         )
 
-    if 'language' in request.GET:
-        url_params['type'] = check.check_id
+    if request.GET.get('language') and '/' not in request.GET['language']:
+        url_params['type'] = check.url_id
         return redirect_param(
             'translate',
             encode_optional(url_params),
@@ -277,10 +269,10 @@ def show_check_subproject(request, name, project, subproject):
         for lang in langs:
             checks = allchecks.filter(
                 language=lang,
-            ).values_list('contentsum', flat=True)
+            ).values_list('content_hash', flat=True)
             res = Unit.objects.filter(
                 translation__subproject=subprj,
-                contentsum__in=checks,
+                content_hash__in=checks,
                 translation__language=lang,
                 translated=True
             ).values(
@@ -308,7 +300,7 @@ def show_check_subproject(request, name, project, subproject):
         'check_subproject.html',
         {
             'checks': units,
-            'title': '%s/%s' % (force_text(subprj), check.name),
+            'title': '{0}/{1}'.format(force_text(subprj), check.name),
             'check': check,
             'subproject': subprj,
             'url_params': encode_optional(url_params),

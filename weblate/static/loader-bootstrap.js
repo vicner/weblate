@@ -5,8 +5,8 @@ var lastEditor = null;
 var jsLockUpdate = null;
 var idleTime = 0;
 
-
-if (window.location.hash && window.location.hash.indexOf('=') > -1) {
+// Remove some weird things from location hash
+if (window.location.hash && (window.location.hash.indexOf('"') > -1 || window.location.hash.indexOf('=') > -1)) {
     window.location.hash = '';
 }
 
@@ -69,6 +69,9 @@ function submitForm(evt) {
     }
     if ($form.length > 0) {
         var submits = $form.find('input[type="submit"]');
+        if (submits.length === 0) {
+            submits = $form.find('button[type="submit"]');
+        }
         if (submits.length > 0) {
             submits[0].click();
         }
@@ -128,6 +131,76 @@ function loadActivityChart(element) {
     });
 }
 
+function screenshotStart() {
+    $('#search-results').empty();
+    increaseLoading('#screenshots-loading');
+}
+
+function screenshotFailure() {
+    screenshotLoaded({responseCode: 500});
+}
+
+function screenshotAddString() {
+    var pk = $(this).data('pk');
+    var addLoadId = '#adding-' + pk;
+    $('#add-source').val(pk);
+    increaseLoading(addLoadId);
+    var form = $('#screenshot-add-form');
+    $.ajax({
+        type: 'POST',
+        url: form.attr('action'),
+        data: form.serialize(),
+        dataType: 'json',
+        success: function () {
+            decreaseLoading(addLoadId);
+            $(addLoadId).parents('tr').fadeOut();
+            var list = $('#sources-listing');
+            $.get(list.data('href'), function (data) {
+                list.html(data);
+            });
+        },
+        error: function () {
+            decreaseLoading(addLoadId);
+        }
+    });
+}
+
+function screnshotResultError(severity, message) {
+    $('#search-results').html(
+        '<tr class="' + severity + '"><td colspan="2">' + message + '</td></tr>'
+    );
+}
+
+function screenshotResultSet(results) {
+    $('#search-results').empty();
+    $.each(results, function (idx, value) {
+        var row = $(
+            '<tr><td class="text"></td>' +
+            '<td><a class="add-string btn btn-success"><i class="fa fa-plus"></i> ' +
+            gettext('Add to screenshot') +
+            '</a><i class="fa fa-spinner fa-spin"></i></tr>'
+        );
+        row.find('.text').text(value.text);
+        row.find('.add-string').data('pk', value.pk);
+        row.find('.fa-spin').hide().attr('id', 'adding-' + value.pk);
+        $('#search-results').append(row);
+        console.log(value);
+    });
+    $('#search-results').find('.add-string').click(screenshotAddString);
+}
+
+function screenshotLoaded(data) {
+    decreaseLoading('#screenshots-loading');
+    console.log(data);
+    if (data.responseCode !== 200) {
+        screnshotResultError('danger', gettext('Error loading search results!'));
+    } else if (data.results.length === 0) {
+        screnshotResultError('warning', gettext('No new matching source strings found.'));
+    } else {
+        screenshotResultSet(data.results);
+    }
+}
+
 function initEditor() {
     /* Autosizing */
     autosize($('.translation-editor'));
@@ -157,7 +230,7 @@ function initEditor() {
     /* Special characters */
     $('.specialchar').click(function (e) {
         var $this = $(this);
-        var text = $this.text();
+        var text = $this.data('value');
         if (text === '\\t') {
             text = '\t';
         } else if (text === '→') {
@@ -215,12 +288,14 @@ function processMachineTranslation(data) {
         });
         $('a.copymt').click(function () {
             var text = $(this).parent().parent().find('.target').text();
-            $('.translation-editor').val(text).trigger('autosize.resize');
+            $('.translation-editor').val(text);
+            autosize.update($('.translation-editor'));
             $('#id_fuzzy').prop('checked', true);
         });
         $('a.copymt-save').click(function () {
             var text = $(this).parent().parent().find('.target').text();
-            $('.translation-editor').val(text).trigger('autosize.resize');
+            $('.translation-editor').val(text);
+            autosize.update($('.translation-editor'));
             $('#id_fuzzy').prop('checked', false);
             submitForm({target:$('.translation-editor')});
         });
@@ -429,7 +504,8 @@ function insertEditor(text, element)
         }
     }
 
-    editor.insertAtCaret($.trim(text)).trigger('autosize.resize');;
+    editor.insertAtCaret($.trim(text));
+    autosize.update(editor);
 }
 
 function updateLock() {
@@ -438,7 +514,11 @@ function updateLock() {
         return;
     }
     $.ajax({
+        type: 'POST',
         url: $('#js-lock').attr('href'),
+        data: {
+            csrfmiddlewaretoken: $('#link-post').find('input').val()
+        },
         success: function(data) {
             if (! data.status) {
                 $('.lock-error').remove();
@@ -1081,7 +1161,105 @@ $(function () {
     });
     $document.on('click', '.thumbnail', function() {
         $('#imagepreview').attr('src', $(this).attr('href'));
+        $('#myModalLabel').text($(this).attr('title'));
         $('#imagemodal').modal('show');
         return false;
+    });
+    /* Screenshot management */
+    $('#screenshots-search,#screenshots-auto').click(function () {
+        screenshotStart();
+        var $this = $(this);
+        $.ajax({
+            type: 'POST',
+            url: $this.data('href'),
+            data: $this.parent().serialize(),
+            dataType: 'json',
+            success: screenshotLoaded,
+            error: screenshotFailure,
+        });
+        return false;
+    });
+
+    /* Access management */
+    $('.set-group').tooltip({
+        title: function() {
+            var $this = $(this);
+            if ($this.data('error')) {
+                return $this.data('error');
+            }
+            return $this.data('name');
+        },
+        animation: false
+    });
+    $('.set-group').click(function () {
+        var $this = $(this);
+        var $form = $('#set_groups_form');
+
+        $this.tooltip('hide');
+        $this.prop('disabled', true);
+        $this.data('error', '');
+        $this.parent().removeClass('load-error');
+
+        $.ajax({
+            type: 'POST',
+            url: $form.attr('action'),
+            data: {
+                csrfmiddlewaretoken: $form.find('input').val(),
+                action: ($this.prop('checked') ? 'add' : 'remove'),
+                name: $this.data('username'),
+                group: $this.data('group'),
+            },
+            dataType: 'json',
+            success: function (data) {
+                if (data.responseCode !== 200) {
+                    $this.parent().addClass('load-error');
+                    $this.data('error', data.message);
+                    $this.tooltip('show');
+                }
+                $this.prop('checked', data.state);
+                $this.prop('disabled', false);
+            },
+            error: function (xhr, textStatus, errorThrown) {
+                $this.parent().addClass('load-error');
+                $this.data('error', errorThrown);
+                $this.tooltip('show');
+                $this.prop('disabled', false);
+            },
+        });
+    });
+
+    /* Inline dictionary adding */
+    $('.add-dict-inline').submit(function () {
+        var form = $(this);
+        increaseLoading('#glossary-add-loading');
+        $.ajax({
+            type: 'POST',
+            url: form.attr('action'),
+            data: form.serialize(),
+            dataType: 'json',
+            success: function (data) {
+                decreaseLoading('#glossary-add-loading');
+                if (data.responseCode === 200) {
+                    form.find('tbody').html(data.results);
+                    form.find('[name=words]').attr('value', data.words);
+                }
+            },
+            error: function (xhr, textStatus, errorThrown) {
+                decreaseLoading('#glossary-add-loading');
+            }
+        });
+        return false;
+    });
+
+    /* Avoid double submission of non AJAX forms */
+    $('form:not(.double-submission)').on('submit', function(e){
+        var $form = $(this);
+        if ($form.data('submitted') === true) {
+            // Previously submitted - don't submit again
+            e.preventDefault();
+        } else {
+            // Mark it so that the next submit can be ignored
+            $form.data('submitted', true);
+        }
     });
 });

@@ -8,8 +8,8 @@ section brings overview of them.
 
 .. _docker:
 
-Weblate and Docker
-------------------
+Running Weblate in the Docker
+-----------------------------
 
 With dockerized weblate deployment you can get your personal weblate instance
 up an running in seconds. All of Weblate's dependencies are already included.
@@ -65,6 +65,26 @@ Enjoy your Weblate deployment, it's accessible on port 80 of the web container.
 
 .. seealso:: :ref:`invoke-manage`
 
+Upgrading Docker container
+++++++++++++++++++++++++++
+
+Usually it is good idea to update weblate container only and keep PostgreSQL
+one at version you have as upgrading PostgreSQL is quite painful and in most
+cases it does not bring much benefits.
+
+You can do this by sticking with existing docker-compose and just pulling
+latest images and restarting:
+
+.. code-block:: sh
+
+    docker-compose down
+    docker-compose pull
+    docker-compose build --pull
+    docker-compose up
+
+The Weblate database should be automatically migrated on first start and there
+should be no need for additional manual actions.
+
 Maintenance tasks
 +++++++++++++++++
 
@@ -88,7 +108,7 @@ Generic settings
 
 .. envvar:: WEBLATE_DEBUG
 
-    Configures Django debug mode, see :ref:`production-debug`.
+    Configures Django debug mode using :setting:`DEBUG`, see :ref:`production-debug`.
 
     **Example:**
 
@@ -137,7 +157,8 @@ Generic settings
 
 .. envvar:: WEBLATE_ALLOWED_HOSTS
 
-    Configures allowed HTTP hostnames, see :ref:`production-hosts`
+    Configures allowed HTTP hostnames using :setting:`ALLOWED_HOSTS`, see
+    :ref:`production-hosts`
 
     **Example:**
 
@@ -207,6 +228,16 @@ Generic settings
 
     Configures ID for Google Analytics, see :setting:`GOOGLE_ANALYTICS_ID`.
 
+.. envvar:: WEBLATE_GITHUB_USERNAME
+
+    Configures github username for GitHub pull requests, see
+    :setting:`GITHUB_USERNAME`.
+
+    .. seealso::
+
+       :ref:`github-push`,
+       :ref:`hub-setup`
+
 
 Machine translation settings
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -215,6 +246,9 @@ Machine translation settings
 
     Enables Google machine translation and sets :setting:`MT_GOOGLE_KEY`
 
+.. envvar:: WEBLATE_MT_MICROSOFT_COGNITIVE_KEY
+
+    Enables Microsoft machine translation and sets :setting:`MT_MICROSOFT_COGNITIVE_KEY`
 
 Authentication settings
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -222,7 +256,7 @@ Authentication settings
 .. envvar:: WEBLATE_SOCIAL_AUTH_GITHUB_KEY
 .. envvar:: WEBLATE_SOCIAL_AUTH_GITHUB_SECRET
 
-    Enables :ref:`google_auth`.
+    Enables :ref:`github_auth`.
 
 .. envvar:: WEBLATE_SOCIAL_AUTH_BITBUCKET_KEY
 .. envvar:: WEBLATE_SOCIAL_AUTH_BITBUCKET_SECRET
@@ -239,8 +273,49 @@ Authentication settings
 
     Enables :ref:`google_auth`.
 
-PostgreSQL databse setup
-~~~~~~~~~~~~~~~~~~~~~~~~
+.. envvar:: WEBLATE_SOCIAL_AUTH_GITLAB_KEY
+.. envvar:: WEBLATE_SOCIAL_AUTH_GITLAB_SECRET
+.. envvar:: WEBLATE_SOCIAL_AUTH_GITLAB_API_URL
+
+    Enables :ref:`gitlab_auth`.
+
+Processing hooks
+~~~~~~~~~~~~~~~~
+
+All these processing hooks should get comma separaated list of available
+scripts, for example:
+
+.. code-block:: sh
+
+    WEBLATE_POST_UPDATE_SCRIPTS=/usr/local/share/weblate/examples/hook-cleanup-android
+
+.. seealso::
+
+    :ref:`processing`
+
+.. envvar:: WEBLATE_POST_UPDATE_SCRIPTS
+
+    Sets :setting:`POST_UPDATE_SCRIPTS`.
+
+.. envvar:: WEBLATE_PRE_COMMIT_SCRIPTS
+
+    Sets :setting:`PRE_COMMIT_SCRIPTS`.
+
+.. envvar:: WEBLATE_POST_COMMIT_SCRIPTS
+
+    Sets :setting:`POST_COMMIT_SCRIPTS`.
+
+.. envvar:: WEBLATE_POST_PUSH_SCRIPTS
+
+    Sets :setting:`POST_PUSH_SCRIPTS`.
+
+.. envvar:: WEBLATE_POST_ADD_SCRIPTS
+
+    Sets :setting:`POST_ADD_SCRIPTS`.
+
+
+PostgreSQL database setup
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The database is created by :file:`docker-compose.yml`, so this settings affects
 both Weblate and PostgreSQL containers.
@@ -257,7 +332,15 @@ both Weblate and PostgreSQL containers.
 
 .. envvar:: POSTGRES_DATABASE
 
-    PostgreSQL databse name.
+    PostgreSQL database name.
+
+.. envvar:: POSTGRES_HOST
+
+    PostgreSQL server hostname or IP adress. Defaults to `database`.
+
+.. envvar:: POSTGRES_PORT
+
+    PostgreSQL server port. Default to empty (use default value).
 
 Email server setup
 ~~~~~~~~~~~~~~~~~~
@@ -270,15 +353,36 @@ To make outgoing email work, you need to provide mail server.
 
     Mail server, the server has to listen on port 587 and understand TLS.
 
-.. envvar:: WEBLATE_EMAIL_USER
+.. envvar:: WEBLATE_EMAIL_PORT
+
+    Mail server port, use if your cloud provider or ISP blocks outgoing
+    connections on port 587.
+
+.. envvar:: WEBLATE_EMAIL_HOST_USER
 
     Email authentication user, do NOT use quotes here.
 
-.. envvar:: WEBLATE_EMAIL_PASSWORD
+.. envvar:: WEBLATE_EMAIL_HOST_PASSWORD
 
     Email authentication password, do NOT use quotes here.
 
+Hub setup
++++++++++
 
+In order to use the Github pull requests feature, you must initialize hub configuration by entering the weblate container and executing an arbitrary hub command. For example:
+
+.. code-block:: sh
+
+    docker-compose exec weblate bash
+    cd
+    HOME=/app/data/home hub clone octocat/Spoon-Knife
+
+The username passed for credentials must be the same than :setting:`GITHUB_USERNAME`.
+
+.. seealso::
+
+    :ref:`github-push`,
+    :ref:`hub-setup`
 
 Select your machine - local or cloud providers
 ++++++++++++++++++++++++++++++++++++++++++++++
@@ -289,8 +393,8 @@ Digitalocean and many more providers.
 
 .. _openshift:
 
-Weblate on OpenShift
---------------------
+Running Weblate on OpenShift
+----------------------------
 
 This repository contains a configuration for the OpenShift platform as a
 service product, which facilitates easy installation of Weblate on OpenShift
@@ -328,18 +432,21 @@ with the following command:
 
 .. code-block:: sh
 
+    # Install Git HEAD
     rhc -aweblate app create -t python-2.7 --from-code https://github.com/WeblateOrg/weblate.git --no-git
+
+    # Install Weblate 2.10
+    rhc -aweblate app create -t python-2.7 --from-code https://github.com/WeblateOrg/weblate.git#weblate-2.10 --no-git
 
 The ``-a`` option defines the name of your weblate installation, ``weblate`` in
 this instance. You are free to specify a different name.
 
-Optionally you can specify tag identifier right of the ``#`` sign to identify
-the version of Weblate to install (for example specify
-``https://github.com/WeblateOrg/weblate.git#weblate-2.0`` to install Weblate 2.0).
-For a list of available versions see here:
-https://github.com/WeblateOrg/weblate/tags. Please note that only version 2.0 and
-newer can be installed on OpenShift, as older versions don't include the
-necessary configuration files. The ``--no-git`` option skips the creation of a
+The above example installs latest development version, you can optionally
+specify tag identifier right of the ``#`` sign to identify the version of
+Weblate to install. For a list of available versions see here:
+https://github.com/WeblateOrg/weblate/tags.
+
+The ``--no-git`` option skips the creation of a
 local git repository.
 
 You can also specify which database you want to use:
@@ -357,9 +464,9 @@ Default Configuration
 
 After installation on OpenShift Weblate is ready to use and preconfigured as follows:
 
-* SQLite embedded database (DATABASES)
+* SQLite embedded database (:setting:`DATABASES`)
 * Random admin password
-* Random Django secret key (SECRET_KEY)
+* Random Django secret key (:setting:`SECRET_KEY`)
 * Indexing offloading if the cron cartridge is installed (:setting:`OFFLOAD_INDEXING`)
 * Committing of pending changes if the cron cartridge is installed (:djadmin:`commit_pending`)
 * Weblate machine translations for suggestions bases on previous translations (:setting:`MACHINE_TRANSLATION_SERVICES`)
@@ -418,7 +525,7 @@ under :ref:`config` using ``rhc env set`` by prepending the settings name with
 so it is parsed as Python string, after replacing environment variables in it
 (eg. ``$PATH``). To put literal ``$`` you need to escape it as ``$$``.
 
-For example override the ``ADMINS`` setting like this:
+For example override the :setting:`ADMINS` setting like this:
 
 .. code-block:: sh
 
@@ -513,8 +620,8 @@ documentation.
 
 .. _appliance:
 
-SUSE Studio appliance
----------------------
+Weblate as a SUSE Studio appliance
+----------------------------------
 
 Weblate appliance provides preconfigured Weblate running with PostgreSQL
 database as backend and Apache as web server. It is provided in many formats

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,16 +15,18 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
+
 import random
+
+from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
 from django.utils.encoding import python_2_unicode_compatible
 from django.db import models
 from django.utils import timezone
-from weblate import appsettings
 
 DONATE = 'https://weblate.org/donate/'
 BOUNTYSOURCE = 'https://salt.bountysource.com/teams/weblate'
@@ -49,9 +51,7 @@ class AdvertisementManager(models.Manager):
     )
 
     def get_advertisement(self, placement):
-        '''
-        Returns random advertisement for given placement.
-        '''
+        """Return random advertisement for given placement."""
         now = timezone.now()
         base = self.filter(
             placement=placement,
@@ -65,10 +65,8 @@ class AdvertisementManager(models.Manager):
         return base[offset]
 
     def fallback_advertisement(self, placement):
-        '''
-        Returns fallback advertisement.
-        '''
-        if not appsettings.SELF_ADVERTISEMENT:
+        """Return fallback advertisement."""
+        if not settings.SELF_ADVERTISEMENT:
             return None
 
         now = timezone.now()

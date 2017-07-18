@@ -13,10 +13,8 @@ All settings are stored in :file:`settings.py` (as usual for Django).
 
 .. seealso::
 
-    Please check also `Django's documentation`_ for parameters which configure
-    Django itself.
-
-.. _`Django's documentation`: https://docs.djangoproject.com/en/stable/ref/settings/
+    Please check also :doc:`Django's documentation <django:ref/settings>` for
+    parameters which configure Django itself.
 
 .. setting:: ANONYMOUS_USER_NAME
 
@@ -25,9 +23,108 @@ ANONYMOUS_USER_NAME
 
 User name of user for definining privileges of not logged in user.
 
-.. seealso:: 
-   
+.. seealso::
+
     :ref:`privileges`
+
+.. setting:: AUTH_LOCK_ATTEMPTS
+
+AUTH_LOCK_ATTEMPTS
+------------------
+
+.. versionadded:: 2.14
+
+Maximal number of failed authentication attempts before rate limiting is applied.
+
+This is currently applied in following locations:
+
+* On login, the acccount password is reset. User will not be able to log in
+  after that using password until he asks for password reset.
+* On password reset, the reset mails are no longer sent. This avoids spamming
+  user with too many password reset attempts.
+
+Defaults to 10.
+
+.. seealso::
+
+    :ref:`rate-limit`,
+
+.. setting:: AUTH_MAX_ATTEMPTS
+
+AUTH_MAX_ATTEMPTS
+-----------------
+
+.. versionadded:: 2.14
+
+Maximal number of authentication attempts before rate limiting applies.
+
+Defaults to 5.
+
+.. seealso::
+
+    :ref:`rate-limit`,
+    :setting:`AUTH_CHECK_WINDOW`,
+    :setting:`AUTH_LOCKOUT_TIME`
+
+.. setting:: AUTH_CHECK_WINDOW
+
+AUTH_CHECK_WINDOW
+-----------------
+
+.. versionadded:: 2.14
+
+Length of authentication window for rate limiting in seconds.
+
+Defaults to 300 (5 minutes).
+
+.. seealso::
+
+    :ref:`rate-limit`,
+    :setting:`AUTH_MAX_ATTEMPTS`,
+    :setting:`AUTH_LOCKOUT_TIME`
+
+.. setting:: AUTH_LOCKOUT_TIME
+
+AUTH_LOCKOUT_TIME
+-----------------
+
+.. versionadded:: 2.14
+
+Length of authentication lockout window after rate limit is applied.
+
+Defaults to 600 (10 minutes).
+
+.. seealso::
+
+    :ref:`rate-limit`,
+    :setting:`AUTH_MAX_ATTEMPTS`,
+    :setting:`AUTH_CHECK_WINDOW`
+
+.. setting:: AUTH_TOKEN_VALID
+
+AUTH_TOKEN_VALID
+----------------
+
+.. versionadded:: 2.14
+
+Validity of token in activation and password reset mails in seconds.
+
+Defaults to 3600 (1 hour).
+
+
+AUTH_PASSWORD_DAYS
+------------------
+
+.. versionadded:: 2.15
+
+Define (in days) how long in past Weblate should reject reusing same password.
+
+.. note::
+
+    Password changes done prior to Weblate 2.15 will not be accounted for this
+    policy, it is valid only
+
+Defaults to 180 days.
 
 .. setting:: AUTO_LOCK
 
@@ -36,8 +133,8 @@ AUTO_LOCK
 
 Enables automatic locking of translation when somebody is working on it.
 
-.. seealso:: 
-   
+.. seealso::
+
    :ref:`locking`
 
 .. setting:: AUTO_LOCK_TIME
@@ -47,8 +144,8 @@ AUTO_LOCK_TIME
 
 Time in seconds for how long the automatic lock for translation will be active.
 
-.. seealso:: 
-   
+.. seealso::
+
    :ref:`locking`
 
 .. setting:: AUTOFIX_LIST
@@ -58,14 +155,19 @@ AUTOFIX_LIST
 
 List of automatic fixups to apply when saving the message.
 
+You need to provide fully-qualified path to Python class implementing the
+autofixer interface.
+
 Available fixes:
 
-``trans.autofixes.whitespace.SameBookendingWhitespace``
+``weblate.trans.autofixes.whitespace.SameBookendingWhitespace``
     Fixes up whitespace in beginning and end of the string to match source.
-``trans.autofixes.chars.ReplaceTrailingDotsWithEllipsis``
+``weblate.trans.autofixes.chars.ReplaceTrailingDotsWithEllipsis``
     Replaces traling dots with ellipsis if source string has it.
-``trans.autofixes.chars.RemoveZeroSpace``
+``weblate.trans.autofixes.chars.RemoveZeroSpace``
     Removes zero width space char if source does not contain it.
+``weblate.trans.autofixes.chars.RemoveControlCharS``
+    Removes control characters if source does not contain it.
 
 For example you can enable only few of them:
 
@@ -76,8 +178,8 @@ For example you can enable only few of them:
         'weblate.trans.autofixes.chars.ReplaceTrailingDotsWithEllipsis',
     )
 
-.. seealso:: 
-   
+.. seealso::
+
    :ref:`autofix`, :ref:`custom-autofix`
 
 .. setting:: BACKGROUND_HOOKS
@@ -94,6 +196,9 @@ CHECK_LIST
 ----------
 
 List of quality checks to perform on translation.
+
+You need to provide fully-qualified path to Python class implementing the check
+interface.
 
 Some of the checks are not useful for all projects, so you are welcome to
 adjust list of performed on your installation.
@@ -113,15 +218,18 @@ For example you can enable only few of them:
         'weblate.trans.checks.chars.EndQuestionCheck',
         'weblate.trans.checks.chars.EndExclamationCheck',
         'weblate.trans.checks.chars.EndEllipsisCheck',
+        'weblate.trans.checks.chars.EndSemicolonCheck',
         'weblate.trans.checks.chars.MaxLengthCheck',
         'weblate.trans.checks.format.PythonFormatCheck',
         'weblate.trans.checks.format.PythonBraceFormatCheck',
         'weblate.trans.checks.format.PHPFormatCheck',
         'weblate.trans.checks.format.CFormatCheck',
+        'weblate.trans.checks.format.PerlFormatCheck',
         'weblate.trans.checks.format.JavascriptFormatCheck',
         'weblate.trans.checks.consistency.SamePluralsCheck',
         'weblate.trans.checks.consistency.PluralsCheck',
         'weblate.trans.checks.consistency.ConsistencyCheck',
+        'weblate.trans.checks.consistency.TranslatedCheck',
         'weblate.trans.checks.chars.NewlineCountingCheck',
         'weblate.trans.checks.markup.BBCodeCheck',
         'weblate.trans.checks.chars.ZeroWidthSpaceCheck',
@@ -131,8 +239,15 @@ For example you can enable only few of them:
         'weblate.trans.checks.source.MultipleFailingCheck',
     )
 
-.. seealso:: 
-   
+.. note::
+
+    Once you change this setting the existing checks will be still stored in
+    the database, only newly changed translation will be affected by the
+    change. To apply change to already stored translations, you need to run
+    :djadmin:`updatechecks`.
+
+.. seealso::
+
    :ref:`checks`, :ref:`custom-checks`
 
 .. setting:: COMMIT_PENDING_HOURS
@@ -187,8 +302,8 @@ DEFAULT_COMMITER_EMAIL
 Default commiter email when creating translation component (see
 :ref:`component`), defaults to ``noreply@weblate.org``.
 
-.. seealso:: 
-   
+.. seealso::
+
    :setting:`DEFAULT_COMMITER_NAME`, :ref:`component`
 
 .. setting:: DEFAULT_COMMITER_NAME
@@ -201,8 +316,8 @@ DEFAULT_COMMITER_NAME
 Default commiter name when creating translation component (see
 :ref:`component`), defaults to ``Weblate``.
 
-.. seealso:: 
-   
+.. seealso::
+
    :setting:`DEFAULT_COMMITER_EMAIL`, :ref:`component`
 
 .. setting:: DEFAULT_TRANSLATION_PROPAGATION
@@ -212,11 +327,11 @@ DEFAULT_TRANSLATION_PROPAGATION
 
 .. versionadded:: 2.5
 
-Default setting for translation propagation (see :ref:`component`), 
+Default setting for translation propagation (see :ref:`component`),
 defaults to ``True``.
 
-.. seealso:: 
-   
+.. seealso::
+
    :ref:`component`
 
 .. setting:: ENABLE_AVATARS
@@ -231,9 +346,10 @@ The avatars are fetched and cached on the server, so there is no risk in
 leaking private information or slowing down the user experiences with enabling
 this.
 
-.. seealso:: 
-   
-   :ref:`production-cache-avatar`
+.. seealso::
+
+   :ref:`production-cache-avatar`,
+   :ref:`avatars`
 
 .. setting:: ENABLE_HOOKS
 
@@ -242,8 +358,8 @@ ENABLE_HOOKS
 
 Whether to enable anonymous remote hooks.
 
-.. seealso:: 
-   
+.. seealso::
+
    :ref:`hooks`
 
 .. setting:: ENABLE_HTTPS
@@ -284,9 +400,10 @@ GITHUB_USERNAME
 GitHub username that will be used to send pull requests for translation
 updates.
 
-.. seealso:: 
-   
-   :ref:`github-push`
+.. seealso::
+
+   :ref:`github-push`,
+   :ref:`hub-setup`
 
 .. setting:: GOOGLE_ANALYTICS_ID
 
@@ -306,6 +423,65 @@ URL with user and password, Weblate will hide it when showing it to the users.
 For example instead of ``https://user:password@git.example.com/repo.git`` it
 will show just ``https://git.example.com/repo.git``.
 
+.. setting:: IP_BEHIND_REVERSE_PROXY
+
+IP_BEHIND_REVERSE_PROXY
+-----------------------
+
+.. versionadded:: 2.14
+
+Indicates whether Weblate is running behind reverse proxy.
+
+If set to True, Weblate gets IP address from header defined by
+:setting:`IP_BEHIND_REVERSE_PROXY`. Ensure that you are actually using reverse
+proxy and that it sets this header, otherwise users will be able to fake the IP
+address.
+
+Defaults to False.
+
+.. seealso::
+
+    :ref:`rate-limit`,
+    :ref:`rate-ip`
+
+.. setting:: IP_PROXY_HEADER
+
+IP_BEHIND_REVERSE_PROXY
+-----------------------
+
+.. versionadded:: 2.14
+
+Indicates from which header Weblate should obtain IP address when
+:setting:`IP_BEHIND_REVERSE_PROXY` is enabled.
+
+Defaults to ``HTTP_X_FORWARDED_FOR``.
+
+.. seealso::
+
+    :ref:`rate-limit`,
+    :ref:`rate-ip`
+
+.. setting:: IP_PROXY_OFFSET
+
+IP_PROXY_OFFSET
+---------------
+
+.. versionadded:: 2.14
+
+Indicates which part of :setting:`IP_BEHIND_REVERSE_PROXY` is used as client IP
+address.
+
+Depending on your setup, this header might consist of several IP addresses,
+(for example ``X-Forwarded-For: a, b, client-ip``) and you can configure here
+which address from the header is client IP address.
+
+Defaults to 0.
+
+.. seealso::
+
+    :ref:`rate-limit`,
+    :ref:`rate-ip`
+
 .. setting:: LAZY_COMMITS
 
 LAZY_COMMITS
@@ -315,8 +491,8 @@ Delay creating VCS commits until this is necessary. This heavily reduces
 number of commits generated by Weblate at expense of temporarily not being
 able to merge some changes as they are not yet committed.
 
-.. seealso:: 
-   
+.. seealso::
+
    :ref:`lazy-commit`
 
 .. setting:: LOCK_TIME
@@ -327,8 +503,8 @@ LOCK_TIME
 Time in seconds for how long the translation will be locked for single
 translator when locked manually.
 
-.. seealso:: 
-   
+.. seealso::
+
    :ref:`locking`
 
 .. setting:: LOGIN_REQUIRED_URLS
@@ -392,8 +568,8 @@ List of enabled machine translation services to use.
         'weblate.trans.machine.weblatetm.WeblateTranslation',
     )
 
-.. seealso:: 
-   
+.. seealso::
+
    :ref:`machine-translation-setup`, :ref:`machine-translation`
 
 
@@ -405,7 +581,7 @@ MT_APERTIUM_APY
 URL of the Apertium APy server, see http://wiki.apertium.org/wiki/Apertium-apy
 
 .. seealso::
-   
+
    :ref:`apertium`, :ref:`machine-translation-setup`, :ref:`machine-translation`
 
 
@@ -414,12 +590,12 @@ URL of the Apertium APy server, see http://wiki.apertium.org/wiki/Apertium-apy
 MT_APERTIUM_KEY
 ---------------
 
-API key for Apertium Web Service, you can register at http://api.apertium.org/register.jsp
+API key for Apertium Web Service, currently not used.
 
-Not needed when running own Apertium APy server.
+Not needed at all when running own Apertium APy server.
 
 .. seealso::
-   
+
    :ref:`apertium`, :ref:`machine-translation-setup`, :ref:`machine-translation`
 
 .. setting:: MT_GOOGLE_KEY
@@ -429,8 +605,8 @@ MT_GOOGLE_KEY
 
 API key for Google Translate API, you can register at https://cloud.google.com/translate/docs
 
-.. seealso:: 
-   
+.. seealso::
+
    :ref:`google-translate`, :ref:`machine-translation-setup`, :ref:`machine-translation`
 
 .. setting:: MT_MICROSOFT_ID
@@ -440,9 +616,9 @@ MT_MICROSOFT_ID
 
 Cliend ID for Microsoft Translator service.
 
-.. seealso:: 
-   
-   :ref:`ms-translate`, :ref:`machine-translation-setup`, :ref:`machine-translation`, 
+.. seealso::
+
+   :ref:`ms-translate`, :ref:`machine-translation-setup`, :ref:`machine-translation`,
    `Azure datamarket <https://datamarket.azure.com/developer/applications/>`_
 
 .. setting:: MT_MICROSOFT_SECRET
@@ -452,9 +628,9 @@ MT_MICROSOFT_SECRET
 
 Client secret for Microsoft Translator service.
 
-.. seealso:: 
-   
-   :ref:`ms-translate`, :ref:`machine-translation-setup`, :ref:`machine-translation`, 
+.. seealso::
+
+   :ref:`ms-translate`, :ref:`machine-translation-setup`, :ref:`machine-translation`,
    `Azure datamarket <https://datamarket.azure.com/developer/applications/>`_
 
 .. setting:: MT_MICROSOFT_COGNITIVE_KEY
@@ -465,7 +641,7 @@ MT_MICROSOFT_COGNITIVE_KEY
 Client key for Microsoft Cognitive Services Translator API.
 
 .. seealso::
-    :ref:`ms-cognitive-translate`, :ref:`machine-translation-setup`, :ref:`machine-translation`, 
+    :ref:`ms-cognitive-translate`, :ref:`machine-translation-setup`, :ref:`machine-translation`,
     `Cognitive Services - Text Translation API <http://docs.microsofttranslator.com/text-translate.html>`_,
     `Microsfot Azure Portal <https://portal.azure.com/>`_
 
@@ -476,10 +652,10 @@ MT_MYMEMORY_EMAIL
 
 MyMemory identification email, you can get 1000 requests per day with this.
 
-.. seealso:: 
-   
-   :ref:`mymemory`, :ref:`machine-translation-setup`, :ref:`machine-translation`, 
-   `MyMemory: API technical specifications <http://mymemory.translated.net/doc/spec.php>`_
+.. seealso::
+
+   :ref:`mymemory`, :ref:`machine-translation-setup`, :ref:`machine-translation`,
+   `MyMemory: API technical specifications <https://mymemory.translated.net/doc/spec.php>`_
 
 .. setting:: MT_MYMEMORY_KEY
 
@@ -488,10 +664,10 @@ MT_MYMEMORY_KEY
 
 MyMemory access key for private translation memory, use together with :setting:`MT_MYMEMORY_USER`.
 
-.. seealso:: 
-   
-   :ref:`mymemory`, :ref:`machine-translation-setup`, :ref:`machine-translation`, 
-   `MyMemory: API key generator <http://mymemory.translated.net/doc/keygen.php>`_
+.. seealso::
+
+   :ref:`mymemory`, :ref:`machine-translation-setup`, :ref:`machine-translation`,
+   `MyMemory: API key generator <https://mymemory.translated.net/doc/keygen.php>`_
 
 .. setting:: MT_MYMEMORY_USER
 
@@ -500,10 +676,10 @@ MT_MYMEMORY_USER
 
 MyMemory user id for private translation memory, use together with :setting:`MT_MYMEMORY_KEY`.
 
-.. seealso:: 
-   
+.. seealso::
+
    :ref:`mymemory`, :ref:`machine-translation-setup`, :ref:`machine-translation`,
-   `MyMemory: API key generator <http://mymemory.translated.net/doc/keygen.php>`_
+   `MyMemory: API key generator <https://mymemory.translated.net/doc/keygen.php>`_
 
 .. setting:: MT_TMSERVER
 
@@ -512,10 +688,21 @@ MT_TMSERVER
 
 URL where tmserver is running.
 
-.. seealso:: 
-   
+.. seealso::
+
    :ref:`tmserver`, :ref:`machine-translation-setup`, :ref:`machine-translation`,
    `tmserver, a Translation Memory service <http://docs.translatehouse.org/projects/translate-toolkit/en/latest/commands/tmserver.html>`_
+
+.. setting:: MT_YANDEX_KEY
+
+MT_YANDEX_KEY
+-------------
+
+API key for Yandex Translate API, you can register at https://tech.yandex.com/translate/
+
+.. seealso::
+
+   :ref:`yandex-translate`, :ref:`machine-translation-setup`, :ref:`machine-translation`
 
 .. setting:: NEARBY_MESSAGES
 
@@ -538,8 +725,8 @@ While enabling this, don't forget scheduling runs of
 
 This is recommended setup for production use.
 
-.. seealso:: 
-   
+.. seealso::
+
    :ref:`fulltext`
 
 .. setting:: PIWIK_SITE_ID
@@ -549,8 +736,8 @@ PIWIK_SITE_ID
 
 ID of a site in Piwik you want to track.
 
-.. seealso:: 
-   
+.. seealso::
+
    :setting:`PIWIK_URL`
 
 .. setting:: PIWIK_URL
@@ -561,8 +748,8 @@ PIWIK_URL
 URL of a Piwik installation you want to use to track Weblate users. For more
 information about Piwik see <https://piwik.org/>.
 
-.. seealso:: 
-   
+.. seealso::
+
    :setting:`PIWIK_SITE_ID`
 
 .. setting:: POST_ADD_SCRIPTS
@@ -580,8 +767,8 @@ Weblate comes with few example hook scripts which you might find useful:
 :file:`examples/hook-update-linguas`
     Updates LINGUAS file or ALL_LINGUAS in confiugure script.
 
-.. seealso:: 
-   
+.. seealso::
+
    :ref:`processing`
 
 .. setting:: POST_UPDATE_SCRIPTS
@@ -603,8 +790,8 @@ Weblate comes with few example hook scripts which you might find useful:
 :file:`examples/hook-cleanup-android`
     Removes obsolete units from Android resource strings.
 
-.. seealso:: 
-   
+.. seealso::
+
    :ref:`processing`
 
 .. setting:: PRE_COMMIT_SCRIPTS
@@ -634,8 +821,8 @@ Weblate comes with few example hook scripts which you might find useful:
 :file:`examples/hook-replace-single-quotes`
     Replaces single quotes in a file.
 
-.. seealso:: 
-   
+.. seealso::
+
    :ref:`processing`
 
 .. setting:: POST_COMMIT_SCRIPTS
@@ -648,8 +835,8 @@ POST_COMMIT_SCRIPTS
 List of scripts which are allowed as post commit scripts. The script needs to be
 later enabled in the :ref:`component`.
 
-.. seealso:: 
-   
+.. seealso::
+
    :ref:`processing`
 
 .. setting:: POST_PUSH_SCRIPTS
@@ -663,7 +850,7 @@ List of scripts which are allowed as post push scripts. The script needs to be
 later enabled in the :ref:`component`.
 
 .. seealso::
-   
+
    :ref:`processing`
 
 .. setting:: REGISTRATION_CAPTCHA
@@ -674,6 +861,13 @@ REGISTRATION_CAPTCHA
 A boolean (either ``True`` or ``False``) indicating whether registration of new
 accounts is protected by captcha. This setting is optional, and a default of
 True will be assumed if it is not supplied.
+
+If enabled the captcha is added to all pages where users enter email address:
+
+* New account registration.
+* Password recovery.
+* Adding email to an account.
+* Contact form for not logged in users.
 
 .. setting:: REGISTRATION_OPEN
 
@@ -692,7 +886,7 @@ SELF_ADVERTISEMENT
 Enables self advertisement of Weblate in case there are no configured ads.
 
 .. seealso::
-   
+
    :ref:`advertisement`
 
 .. setting:: SIMPLIFY_LANGUAGES

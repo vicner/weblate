@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,24 +15,20 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""
-Tests for check views.
-"""
+"""Test for check views."""
 
 from __future__ import unicode_literals
 
 from django.core.urlresolvers import reverse
 
-from weblate.trans.tests.test_views import ViewTestCase
+from weblate.trans.tests.test_views import FixtureTestCase
 
 
-class ChecksViewTest(ViewTestCase):
-    '''
-    Testing of check views.
-    '''
+class ChecksViewTest(FixtureTestCase):
+    """Testing of check views."""
     def test_browse(self):
         response = self.client.get(reverse('checks'))
         self.assertContains(response, '/same/')
@@ -141,7 +137,7 @@ class ChecksViewTest(ViewTestCase):
         )
         self.assertRedirects(
             response,
-            '{0}?type=ellipsis'.format(
+            '{0}?type=check%3Aellipsis'.format(
                 reverse('review_source', kwargs={
                     'project': self.project.slug,
                     'subproject': self.subproject.slug,

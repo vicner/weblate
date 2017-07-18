@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,45 +15,66 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""
-Tests for translation models.
-"""
+"""Test for translation models."""
 
-from __future__ import print_function
 
 import shutil
 import os
 
-from django.test import TestCase
+from django.core.management.color import no_style
+from django.db import connection
+from django.test import TestCase, LiveServerTestCase
+from django.test.utils import override_settings
 from django.utils import timezone
-from django.contrib.auth.models import Permission, User
+from django.contrib.auth.models import User, Group
 from django.core.exceptions import ValidationError
 
 from weblate.trans.models import (
     Project, Source, Unit, WhiteboardMessage, Check, ComponentList,
-    get_related_units,
+    AutoComponentList, get_related_units,
 )
-from weblate import appsettings
+import weblate.trans.models.subproject
 from weblate.lang.models import Language
-from weblate.trans.tests import OverrideSettings
+from weblate.permissions.helpers import can_access_project
 from weblate.trans.tests.utils import get_test_file, RepoTestMixin
 
 
-class RepoTestCase(TestCase, RepoTestMixin):
-    """
-    Generic class for tests working with repositories.
-    """
+def fixup_languages_seq():
+    # Reset sequence for Language objects as
+    # we're manipulating with them in FixtureTestCase.setUpTestData
+    # and that seems to affect sequence for other tests as well
+    # on some PostgreSQL versions (probably sequence is not rolled back
+    # in a transaction).
+    commands = connection.ops.sequence_reset_sql(no_style(), [Language])
+    if commands:
+        with connection.cursor() as cursor:
+            for sql in commands:
+                cursor.execute(sql)
+
+
+class BaseTestCase(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        fixup_languages_seq()
+
+
+class BaseLiveServerTestCase(LiveServerTestCase):
+    @classmethod
+    def setUpTestData(cls):
+        fixup_languages_seq()
+
+
+class RepoTestCase(BaseTestCase, RepoTestMixin):
+    """Generic class for tests working with repositories."""
     def setUp(self):
         self.clone_test_repos()
 
 
 class ProjectTest(RepoTestCase):
-    """
-    Project object testing.
-    """
+    """Project object testing."""
 
     def test_create(self):
         project = self.create_project()
@@ -86,7 +107,7 @@ class ProjectTest(RepoTestCase):
     def test_wrong_path(self):
         project = self.create_project()
 
-        with OverrideSettings(DATA_DIR='/weblate-nonexisting-path'):
+        with override_settings(DATA_DIR='/weblate-nonexisting-path'):
             # Invalidate cache, pylint: disable=W0212
             project._dir_path = None
 
@@ -97,9 +118,7 @@ class ProjectTest(RepoTestCase):
             )
 
     def test_acl(self):
-        """
-        Test for ACL handling.
-        """
+        """Test for ACL handling."""
         # Create user to verify ACL
         user = User.objects.create_user(
             'testuser',
@@ -115,23 +134,20 @@ class ProjectTest(RepoTestCase):
         project.save()
 
         # Check user does not have access
-        self.assertFalse(project.has_acl(user))
+        self.assertFalse(can_access_project(user, project))
 
-        # Add ACL
-        permission = Permission.objects.get(codename='weblate_acl_test')
-        user.user_permissions.add(permission)
+        # Add to ACL group
+        user.groups.add(Group.objects.get(name='Test@Translate'))
 
         # Need to fetch user again to clear permission cache
         user = User.objects.get(username='testuser')
 
         # We now should have access
-        self.assertTrue(project.has_acl(user))
+        self.assertTrue(can_access_project(user, project))
 
 
 class TranslationTest(RepoTestCase):
-    """
-    Translation testing.
-    """
+    """Translation testing."""
     def test_basic(self):
         project = self.create_subproject()
         translation = project.translation_set.get(language_code='cs')
@@ -140,16 +156,14 @@ class TranslationTest(RepoTestCase):
         self.assertEqual(translation.fuzzy, 0)
 
     def test_extra_file(self):
-        """
-        Test extra commit file handling.
-        """
+        """Test extra commit file handling."""
         subproject = self.create_subproject()
         subproject.pre_commit_script = get_test_file('hook-generate-mo')
-        appsettings.PRE_COMMIT_SCRIPT_CHOICES.append(
+        weblate.trans.models.subproject.PRE_COMMIT_SCRIPT_CHOICES.append(
             (subproject.pre_commit_script, 'hook-generate-mo')
         )
         subproject.pre_commit_script = get_test_file('hook-update-linguas')
-        appsettings.PRE_COMMIT_SCRIPT_CHOICES.append(
+        weblate.trans.models.subproject.PRE_COMMIT_SCRIPT_CHOICES.append(
             (subproject.pre_commit_script, 'hook-update-linguas')
         )
         subproject.extra_commit_file = 'po/%(language)s.mo\npo/LINGUAS'
@@ -171,17 +185,13 @@ class TranslationTest(RepoTestCase):
         self.assertFalse(translation.repo_needs_commit())
 
     def test_validation(self):
-        """
-        Translation validation
-        """
+        """Translation validation"""
         project = self.create_subproject()
         translation = project.translation_set.get(language_code='cs')
         translation.full_clean()
 
     def test_update_stats(self):
-        """
-        Check update stats with no units.
-        """
+        """Check update stats with no units."""
         project = self.create_subproject()
         translation = project.translation_set.get(language_code='cs')
         translation.update_stats()
@@ -189,7 +199,7 @@ class TranslationTest(RepoTestCase):
         translation.update_stats()
 
 
-class ComponentListTest(TestCase):
+class ComponentListTest(RepoTestCase):
     """Test(s) for ComponentList model."""
 
     def test_slug(self):
@@ -197,6 +207,54 @@ class ComponentListTest(TestCase):
         clist = ComponentList()
         clist.slug = 'slug'
         self.assertEqual(clist.tab_slug(), 'list-slug')
+
+    def test_auto(self):
+        self.create_subproject()
+        clist = ComponentList.objects.create(
+            name='Name',
+            slug='slug'
+        )
+        AutoComponentList.objects.create(
+            project_match='^.*$',
+            component_match='^.*$',
+            componentlist=clist
+        )
+        self.assertEqual(
+            clist.components.count(), 1
+        )
+
+    def test_auto_create(self):
+        clist = ComponentList.objects.create(
+            name='Name',
+            slug='slug'
+        )
+        AutoComponentList.objects.create(
+            project_match='^.*$',
+            component_match='^.*$',
+            componentlist=clist
+        )
+        self.assertEqual(
+            clist.components.count(), 0
+        )
+        self.create_subproject()
+        self.assertEqual(
+            clist.components.count(), 1
+        )
+
+    def test_auto_nomatch(self):
+        self.create_subproject()
+        clist = ComponentList.objects.create(
+            name='Name',
+            slug='slug'
+        )
+        AutoComponentList.objects.create(
+            project_match='^none$',
+            component_match='^.*$',
+            componentlist=clist
+        )
+        self.assertEqual(
+            clist.components.count(), 0
+        )
 
 
 class ModelTestCase(RepoTestCase):
@@ -206,9 +264,7 @@ class ModelTestCase(RepoTestCase):
 
 
 class SourceTest(ModelTestCase):
-    """
-    Source objects testing.
-    """
+    """Source objects testing."""
     def test_exists(self):
         self.assertTrue(Source.objects.exists())
 
@@ -226,9 +282,7 @@ class SourceTest(ModelTestCase):
         self.assertEqual(unit2.priority, 200)
 
     def test_check_flags(self):
-        """
-        Setting of Source check_flags changes checks for related units.
-        """
+        """Setting of Source check_flags changes checks for related units."""
         self.assertEqual(Check.objects.count(), 3)
         check = Check.objects.all()[0]
         unit = get_related_units(check)[0]
@@ -239,19 +293,19 @@ class SourceTest(ModelTestCase):
 
 
 class UnitTest(ModelTestCase):
-    @OverrideSettings(MT_WEBLATE_LIMIT=15)
+    @override_settings(MT_WEBLATE_LIMIT=15)
     def test_more_like(self):
         unit = Unit.objects.all()[0]
         self.assertEqual(Unit.objects.more_like_this(unit).count(), 0)
 
-    @OverrideSettings(MT_WEBLATE_LIMIT=0)
+    @override_settings(MT_WEBLATE_LIMIT=0)
     def test_more_like_timeout(self):
         unit = Unit.objects.all()[0]
         self.assertRaisesMessage(
             Exception, 'Request timed out.', Unit.objects.more_like_this, unit
         )
 
-    @OverrideSettings(MT_WEBLATE_LIMIT=-1)
+    @override_settings(MT_WEBLATE_LIMIT=-1)
     def test_more_like_no_fork(self):
         unit = Unit.objects.all()[0]
         self.assertEqual(Unit.objects.more_like_this(unit).count(), 0)

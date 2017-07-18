@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,39 +15,43 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
 
+from django.contrib.auth.models import User
 from django.db import models
 from django.db.models import Count
-from django.contrib.auth.models import User
 from django.utils.encoding import python_2_unicode_compatible
+
+from weblate.accounts.notifications import notify_new_suggestion
 from weblate.lang.models import Language
 from weblate.trans.models.change import Change
-from weblate.trans.permissions import can_vote_suggestion
-from weblate.accounts.avatar import get_user_display
-from weblate.accounts.models import notify_new_suggestion
+from weblate.trans.mixins import UserDisplayMixin
 
 
 class SuggestionManager(models.Manager):
     # pylint: disable=W0232
 
-    def add(self, unit, target, request):
-        '''
-        Creates new suggestion for this unit.
-        '''
+    def add(self, unit, target, request, vote=False):
+        """Create new suggestion for this unit."""
+        user = request.user
 
-        if not request.user.is_authenticated():
-            user = None
-        else:
-            user = request.user
+        same = self.filter(
+            target=target,
+            content_hash=unit.content_hash,
+            language=unit.translation.language,
+            project=unit.translation.subproject.project,
+        )
+
+        if same.exists() or unit.target == target:
+            return False
 
         # Create the suggestion
         suggestion = self.create(
             target=target,
-            contentsum=unit.contentsum,
+            content_hash=unit.content_hash,
             language=unit.translation.language,
             project=unit.translation.subproject.project,
             user=user
@@ -59,11 +63,12 @@ class SuggestionManager(models.Manager):
             action=Change.ACTION_SUGGESTION,
             translation=unit.translation,
             user=user,
+            target=target,
             author=user
         )
 
         # Add unit vote
-        if can_vote_suggestion(user, unit.translation):
+        if vote:
             suggestion.add_vote(
                 unit.translation,
                 request,
@@ -78,8 +83,10 @@ class SuggestionManager(models.Manager):
             user.profile.suggested += 1
             user.profile.save()
 
+        return True
+
     def copy(self, project):
-        """Copies suggestions to new project
+        """Copy suggestions to new project
 
         This is used on moving component to other project and ensures nothing
         is lost. We don't actually look where the suggestion belongs as it
@@ -90,19 +97,20 @@ class SuggestionManager(models.Manager):
             Suggestion.objects.create(
                 project=project,
                 target=suggestion.target,
-                contentsum=suggestion.contentsum,
+                content_hash=suggestion.content_hash,
                 user=suggestion.user,
                 language=suggestion.language,
             )
 
 
 @python_2_unicode_compatible
-class Suggestion(models.Model):
-    contentsum = models.CharField(max_length=40, db_index=True)
+class Suggestion(models.Model, UserDisplayMixin):
+    content_hash = models.BigIntegerField(db_index=True)
     target = models.TextField()
     user = models.ForeignKey(User, null=True, blank=True)
     project = models.ForeignKey('Project')
     language = models.ForeignKey(Language)
+    timestamp = models.DateTimeField(auto_now_add=True)
 
     votes = models.ManyToManyField(
         User,
@@ -122,13 +130,13 @@ class Suggestion(models.Model):
 
     def __str__(self):
         return 'suggestion for {0} by {1}'.format(
-            self.contentsum,
+            self.content_hash,
             self.user.username if self.user else 'unknown',
         )
 
     def accept(self, translation, request):
         allunits = translation.unit_set.filter(
-            contentsum=self.contentsum,
+            content_hash=self.content_hash,
         )
         for unit in allunits:
             unit.target = self.target
@@ -142,7 +150,7 @@ class Suggestion(models.Model):
     def delete_log(self, translation, request):
         """Delete with logging change"""
         allunits = translation.unit_set.filter(
-            contentsum=self.contentsum,
+            content_hash=self.content_hash,
         )
         for unit in allunits:
             Change.objects.create(
@@ -154,22 +162,18 @@ class Suggestion(models.Model):
             )
         self.delete()
 
-    def get_user_display(self):
-        return get_user_display(self.user, link=True)
-
     def get_num_votes(self):
-        '''
-        Returns number of votes.
-        '''
+        """Return number of votes."""
         votes = Vote.objects.filter(suggestion=self)
         positive = votes.filter(positive=True).aggregate(Count('id'))
         negative = votes.filter(positive=False).aggregate(Count('id'))
         return positive['id__count'] - negative['id__count']
 
     def add_vote(self, translation, request, positive):
-        '''
-        Adds (or updates) vote for a suggestion.
-        '''
+        """Add (or updates) vote for a suggestion."""
+        if not request.user.is_authenticated:
+            return
+
         vote, created = Vote.objects.get_or_create(
             suggestion=self,
             user=request.user,
@@ -187,9 +191,7 @@ class Suggestion(models.Model):
 
 @python_2_unicode_compatible
 class Vote(models.Model):
-    '''
-    Suggestion voting.
-    '''
+    """Suggestion voting."""
     suggestion = models.ForeignKey(Suggestion)
     user = models.ForeignKey(User)
     positive = models.BooleanField(default=True)

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 """
@@ -24,9 +24,10 @@ Tests for quality checks.
 
 from django.test import TestCase
 from weblate.trans.checks.consistency import (
-    PluralsCheck, SamePluralsCheck,
+    PluralsCheck, SamePluralsCheck, TranslatedCheck,
 )
 from weblate.trans.tests.test_checks import MockUnit
+from weblate.trans.tests.test_views import ViewTestCase
 
 
 class PluralsCheckTest(TestCase):
@@ -72,3 +73,38 @@ class SamePluralsCheckTest(PluralsCheckTest):
             ['string', 'string'],
             MockUnit('plural_partial_empty'),
         ))
+
+
+class TranslatedCheckTest(ViewTestCase):
+    def setUp(self):
+        super(TranslatedCheckTest, self).setUp()
+        self.check = TranslatedCheck()
+
+    def run_check(self):
+        unit = self.get_unit()
+        return self.check.check_target(
+            unit.get_source_plurals(),
+            unit.get_target_plurals(),
+            unit
+        )
+
+    def test_none(self):
+        self.assertFalse(self.run_check())
+
+    def test_translated(self):
+        self.edit_unit(
+            'Hello, world!\n',
+            'Nazdar svete!\n'
+        )
+        self.assertFalse(self.run_check())
+
+    def test_untranslated(self):
+        self.edit_unit(
+            'Hello, world!\n',
+            'Nazdar svete!\n'
+        )
+        self.edit_unit(
+            'Hello, world!\n',
+            ''
+        )
+        self.assertTrue(self.run_check())

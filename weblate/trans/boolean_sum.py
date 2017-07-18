@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,20 +15,18 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-'''
-Wrapper for Sum to work on Boolean fields.
-'''
+"""Wrapper for Sum to work on Boolean fields."""
 from django.db.models import Sum, When, Case, IntegerField
 
 
-def do_boolean_sum(field):
+def do_boolean_sum(field, value=1):
     """Wrapper to generate SUM on boolean values"""
     cond = {field: True}
     return Sum(
         Case(
-            When(then=1, **cond),
+            When(then=value, **cond),
             default=0,
             output_field=IntegerField()
         )

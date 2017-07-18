@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,18 +15,16 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""
-Tests for dictionary manipulations.
-"""
+"""Test for dictionary manipulations."""
 
 from __future__ import unicode_literals
 
 from django.core.urlresolvers import reverse
 
-from weblate.trans.tests.test_views import ViewTestCase
+from weblate.trans.tests.test_views import FixtureTestCase
 from weblate.trans.models import Dictionary
 from weblate.trans.tests.utils import get_test_file
 
@@ -36,16 +34,15 @@ TEST_CSV_HEADER = get_test_file('terms-header.csv')
 TEST_PO = get_test_file('terms.po')
 
 
-class DictionaryTest(ViewTestCase):
-    '''
-    Testing of dictionary manipulations.
-    '''
+class DictionaryTest(FixtureTestCase):
+    """Testing of dictionary manipulations."""
 
-    def get_url(self, url):
-        return reverse(url, kwargs={
+    def get_url(self, url, **kwargs):
+        kwargs.update({
             'lang': 'cs',
             'project': self.subproject.project.slug,
         })
+        return reverse(url, kwargs=kwargs)
 
     def import_file(self, filename, **kwargs):
         with open(filename, 'rb') as handle:
@@ -57,9 +54,7 @@ class DictionaryTest(ViewTestCase):
             )
 
     def test_import(self):
-        '''
-        Test for importing of TBX into glossary.
-        '''
+        """Test for importing of TBX into glossary."""
         show_url = self.get_url('show_dictionary')
 
         # Import file
@@ -134,12 +129,8 @@ class DictionaryTest(ViewTestCase):
         self.assertEqual(Dictionary.objects.count(), 164)
 
     def test_edit(self):
-        '''
-        Test for manually adding words to glossary.
-        '''
+        """Test for manually adding words to glossary."""
         show_url = self.get_url('show_dictionary')
-        edit_url = self.get_url('edit_dictionary')
-        delete_url = self.get_url('delete_dictionary')
 
         # Add word
         response = self.client.post(
@@ -154,19 +145,19 @@ class DictionaryTest(ViewTestCase):
         self.assertEqual(Dictionary.objects.count(), 1)
 
         dict_id = Dictionary.objects.all()[0].id
-        dict_id_url = '?id=%d' % dict_id
+        edit_url = self.get_url('edit_dictionary', pk=dict_id)
 
         # Check they are shown
         response = self.client.get(show_url)
         self.assertContains(response, 'překlad')
 
         # Edit page
-        response = self.client.get(edit_url + dict_id_url)
+        response = self.client.get(edit_url)
         self.assertContains(response, 'překlad')
 
         # Edit translation
         response = self.client.post(
-            edit_url + dict_id_url,
+            edit_url,
             {'source': 'src', 'target': 'přkld'}
         )
         self.assertRedirects(response, show_url)
@@ -176,16 +167,15 @@ class DictionaryTest(ViewTestCase):
         self.assertContains(response, 'přkld')
 
         # Test deleting
-        response = self.client.post(delete_url, {'id': dict_id})
+        delete_url = self.get_url('delete_dictionary', pk=dict_id)
+        response = self.client.post(delete_url)
         self.assertRedirects(response, show_url)
 
         # Check number of objects
         self.assertEqual(Dictionary.objects.count(), 0)
 
     def test_download_csv(self):
-        '''
-        Test for downloading CVS file.
-        '''
+        """Test for downloading CVS file."""
         # Import test data
         self.import_file(TEST_TBX)
 
@@ -195,13 +185,11 @@ class DictionaryTest(ViewTestCase):
         )
         self.assertContains(
             response,
-            'addon,doplněk'
+            '"addon","doplněk"'
         )
 
     def test_download_tbx(self):
-        '''
-        Test for downloading TBX file.
-        '''
+        """Test for downloading TBX file."""
         # Import test data
         self.import_file(TEST_TBX)
 
@@ -219,9 +207,7 @@ class DictionaryTest(ViewTestCase):
         )
 
     def test_download_xliff(self):
-        '''
-        Test for downloading XLIFF file.
-        '''
+        """Test for downloading XLIFF file."""
         # Import test data
         self.import_file(TEST_TBX)
 
@@ -239,9 +225,7 @@ class DictionaryTest(ViewTestCase):
         )
 
     def test_download_po(self):
-        '''
-        Test for downloading PO file.
-        '''
+        """Test for downloading PO file."""
         # Import test data
         self.import_file(TEST_TBX)
 
@@ -255,9 +239,7 @@ class DictionaryTest(ViewTestCase):
         )
 
     def test_list(self):
-        '''
-        Test for listing dictionaries.
-        '''
+        """Test for listing dictionaries."""
         self.import_file(TEST_TBX)
 
         # List dictionaries
@@ -281,3 +263,74 @@ class DictionaryTest(ViewTestCase):
         self.assertContains(response, 'Czech')
         self.assertContains(response, '1 / 1')
         self.assertContains(response, 'datový tok')
+
+    def test_get_words(self):
+        translation = self.get_translation()
+        Dictionary.objects.create(
+            self.user,
+            project=self.project,
+            language=translation.language,
+            source='hello',
+            target='ahoj',
+        )
+        Dictionary.objects.create(
+            self.user,
+            project=self.project,
+            language=translation.language,
+            source='thank',
+            target='děkujeme',
+        )
+        unit = self.get_unit('Thank you for using Weblate.')
+        self.assertEqual(
+            Dictionary.objects.get_words(unit).count(),
+            1
+        )
+        Dictionary.objects.create(
+            self.user,
+            project=self.project,
+            language=translation.language,
+            source='thank',
+            target='díky',
+        )
+        self.assertEqual(
+            Dictionary.objects.get_words(unit).count(),
+            2
+        )
+        Dictionary.objects.create(
+            self.user,
+            project=self.project,
+            language=translation.language,
+            source='thank you',
+            target='děkujeme vám',
+        )
+        self.assertEqual(
+            Dictionary.objects.get_words(unit).count(),
+            3
+        )
+        Dictionary.objects.create(
+            self.user,
+            project=self.project,
+            language=translation.language,
+            source='thank you for using Weblate',
+            target='děkujeme vám za použití Weblate',
+        )
+        self.assertEqual(
+            Dictionary.objects.get_words(unit).count(),
+            4
+        )
+
+    def test_get_dash(self):
+        translation = self.get_translation()
+        unit = self.get_unit('Thank you for using Weblate.')
+        unit.source = 'Nordrhein-Westfalen'
+        Dictionary.objects.create(
+            self.user,
+            project=self.project,
+            language=translation.language,
+            source='Nordrhein-Westfalen',
+            target='Northrhine Westfalia'
+        )
+        self.assertEqual(
+            Dictionary.objects.get_words(unit).count(),
+            1
+        )

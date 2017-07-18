@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from django.http import HttpResponse, Http404
@@ -40,9 +40,7 @@ def widgets_root(request):
 
 
 def widgets_sorter(widget):
-    """
-    Provides better ordering of widgets.
-    """
+    """Provide better ordering of widgets."""
     return WIDGETS[widget].order
 
 
@@ -63,13 +61,15 @@ def widgets(request, project):
             kwargs={'project': obj.slug, 'lang': lang.code}
         )
     engage_url = get_site_url(engage_base)
-    engage_url_track = '%s?utm_source=widget' % engage_url
+    engage_url_track = '{0}?utm_source=widget'.format(engage_url)
     widget_base_url = get_site_url(
         reverse('widgets', kwargs={'project': obj.slug})
     )
     widget_list = []
     for widget_name in sorted(WIDGETS, key=widgets_sorter):
         widget_class = WIDGETS[widget_name]
+        if not widget_class.show:
+            continue
         color_list = []
         for color in widget_class.colors:
             if lang is None:
@@ -129,6 +129,8 @@ def render_widget(request, project, widget='287x66', color=None, lang=None,
         if 'native' not in request.GET:
             try_set_language(lang)
         lang = Language.objects.try_get(code=lang)
+    else:
+        try_set_language('en')
 
     # Get widget class
     try:
@@ -137,19 +139,29 @@ def render_widget(request, project, widget='287x66', color=None, lang=None,
         raise Http404()
 
     # Construct object
-    widget = widget_class(obj, color, lang)
+    widget_obj = widget_class(obj, color, lang)
 
     # Redirect widget
-    if hasattr(widget, 'redirect'):
-        return redirect(widget.redirect())
+    if hasattr(widget_obj, 'redirect'):
+        return redirect(widget_obj.redirect(), permanent=True)
+
+    # Invalid extension
+    if extension != widget_obj.extension or color != widget_obj.color:
+        kwargs = {
+            'project': project,
+            'widget': widget,
+            'color': widget_obj.color,
+            'extension': widget_obj.extension,
+        }
+        if lang:
+            kwargs['lang'] = lang.code
+            return redirect('widget-image-lang', permanent=True, **kwargs)
+        return redirect('widget-image', permanent=True, **kwargs)
 
     # Render widget
-    widget.render()
-
-    # Get image data
-    data = widget.get_image()
+    widget_obj.render()
 
     return HttpResponse(
-        content_type=widget.content_type,
-        content=data
+        content_type=widget_obj.content_type,
+        content=widget_obj.get_content()
     )

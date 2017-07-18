@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import print_function, unicode_literals
@@ -32,85 +32,66 @@ from weblate.trans.vcs import (
 
 
 def get_version_module(module, name, url, optional=False):
-    '''
-    Returns module object, on error raises verbose
-    exception with name and URL.
-    '''
+    """Return module object.
+
+    On error raises verbose exception with name and URL.
+    """
     try:
         mod = importlib.import_module(module)
     except ImportError:
         if optional:
             return None
         raise Exception(
-            'Failed to import %s, please install %s from %s' % (
+            'Failed to import {0}, please install {1} from {2}'.format(
                 module.replace('.__version__', ''),
                 name,
-                url,
+                url
             )
         )
     return mod
 
 
+def get_optional_module(result, module, name, url, attr='__version__'):
+    """Get metadata for optional dependency"""
+    mod = get_version_module(module, name, url, True)
+    if mod is not None:
+        result.append((
+            name,
+            url,
+            getattr(mod, attr) if attr else 'N/A',
+            None,
+        ))
+
+
 def get_optional_versions():
-    '''
-    Returns versions of optional modules.
-    '''
+    """Return versions of optional modules."""
     result = []
 
-    name = 'pytz'
-    url = 'https://pypi.python.org/pypi/pytz/'
-    mod = get_version_module('pytz', name, url, True)
-    if mod is not None:
-        result.append((
-            name,
-            url,
-            mod.__version__,
-            None,
-        ))
+    get_optional_module(
+        result, 'pytz', 'pytz', 'https://pypi.python.org/pypi/pytz/'
+    )
 
-    name = 'pyuca'
-    url = 'https://github.com/jtauber/pyuca'
-    mod = get_version_module('pyuca', name, url, True)
-    if mod is not None:
-        result.append((
-            name,
-            url,
-            'N/A',
-            None,
-        ))
+    get_optional_module(
+        result, 'pyuca', 'pyuca', 'https://github.com/jtauber/pyuca', None
+    )
 
-    name = 'python-bidi'
-    url = 'https://github.com/MeirKriheli/python-bidi'
-    mod = get_version_module('bidi', name, url, True)
-    if mod is not None:
-        result.append((
-            name,
-            url,
-            mod.VERSION,
-            None,
-        ))
+    get_optional_module(
+        result, 'bidi', 'python-bidi',
+        'https://github.com/MeirKriheli/python-bidi', 'VERSION'
+    )
 
-    name = 'pyLibravatar'
-    url = 'https://pypi.python.org/pypi/pyLibravatar'
-    mod = get_version_module('libravatar', name, url, True)
-    if mod is not None:
-        result.append((
-            name,
-            url,
-            'N/A',
-            None,
-        ))
+    get_optional_module(
+        result, 'libravatar', 'pyLibravatar',
+        'https://pypi.python.org/pypi/pyLibravatar', None
+    )
 
-    name = 'PyYAML'
-    url = 'http://pyyaml.org/wiki/PyYAML'
-    mod = get_version_module('yaml', name, url, True)
-    if mod is not None:
-        result.append((
-            name,
-            url,
-            mod.__version__,
-            None,
-        ))
+    get_optional_module(
+        result, 'yaml', 'PyYAML', 'http://pyyaml.org/wiki/PyYAML'
+    )
+
+    get_optional_module(
+        result, 'tesserocr', 'tesserocr', 'https://github.com/sirfz/tesserocr'
+    )
 
     if HgRepository.is_supported():
         result.append((
@@ -148,7 +129,7 @@ def get_optional_versions():
 
 
 def get_single(name, url, module, required, getter='__version__'):
-    """Returns version information for single module"""
+    """Return version information for single module"""
     mod = get_version_module(module, name, url)
     version_getter = getattr(mod, getter)
     if hasattr(version_getter, '__call__'):
@@ -164,14 +145,12 @@ def get_single(name, url, module, required, getter='__version__'):
 
 
 def get_versions():
-    '''
-    Returns list of used versions.
-    '''
+    """Return list of used versions."""
     result = []
 
     result.append((
         'Python',
-        'http://www.python.org/',
+        'https://www.python.org/',
         sys.version.split()[0],
         '2.7',
     ))
@@ -180,7 +159,7 @@ def get_versions():
         'Django',
         'https://www.djangoproject.com/',
         'django',
-        '1.9',
+        '1.10',
         'get_version'
     ))
 
@@ -192,25 +171,39 @@ def get_versions():
     ))
 
     result.append(get_single(
-        'python-social-auth',
-        'http://psa.matiasaguirre.net/',
-        'social',
-        '0.2.0',
+        'social-auth-core',
+        'https://python-social-auth.readthedocs.io/',
+        'social_core',
+        '1.3.0',
+    ))
+
+    result.append(get_single(
+        'social-auth-app-django',
+        'https://python-social-auth.readthedocs.io/',
+        'social_django',
+        '1.2.0',
+    ))
+
+    result.append(get_single(
+        'django-appconf',
+        'https://github.com/django-compressor/django-appconf',
+        'appconf',
+        '1.0'
     ))
 
     result.append(get_single(
         'Translate Toolkit',
         'http://toolkit.translatehouse.org/',
         'translate.__version__',
-        '1.14.0-rc1',
+        '2.0.0',
         'sver',
     ))
 
     result.append(get_single(
         'Whoosh',
-        'http://bitbucket.org/mchaput/whoosh/',
+        'https://bitbucket.org/mchaput/whoosh/',
         'whoosh',
-        '2.5',
+        '2.7',
         'versionstring',
     ))
 
@@ -233,7 +226,7 @@ def get_versions():
 
     result.append(get_single(
         'Pillow (PIL)',
-        'http://python-pillow.org/',
+        'https://python-pillow.org/',
         'PIL.Image',
         '1.1.6',
         'VERSION',
@@ -241,7 +234,7 @@ def get_versions():
 
     result.append(get_single(
         'dateutil',
-        'http://labix.org/python-dateutil',
+        'https://labix.org/python-dateutil',
         'dateutil',
         '1.0'
     ))
@@ -255,32 +248,30 @@ def get_versions():
 
     result.append(get_single(
         'django-crispy-forms',
-        'http://django-crispy-forms.readthedocs.io/',
+        'https://django-crispy-forms.readthedocs.io/',
         'crispy_forms',
-        '1.4.0',
+        '1.6.1',
     ))
 
     result.append(get_single(
         'compressor',
         'https://github.com/django-compressor/django-compressor',
         'compressor',
-        '1.5',
+        '2.1',
     ))
 
     result.append(get_single(
         'djangorestframework',
         'http://www.django-rest-framework.org/',
         'rest_framework',
-        '3.3',
+        '3.4',
     ))
 
     return result
 
 
 def check_version(name, url, version, expected):
-    '''
-    Check for single module version.
-    '''
+    """Check for single module version."""
     if expected is None:
         return False
     if LooseVersion(version) < LooseVersion(expected):
@@ -292,9 +283,7 @@ def check_version(name, url, version, expected):
 
 
 def check_requirements():
-    '''
-    Performs check on requirements and raises an exception on error.
-    '''
+    """Perform check on requirements and raises an exception on error."""
     versions = get_versions() + get_optional_versions()
     failure = False
 

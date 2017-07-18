@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 import sys
@@ -25,13 +25,13 @@ from django.core.exceptions import PermissionDenied
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 
-from weblate.trans import messages
+from weblate.utils import messages
 from weblate.trans.views.helper import (
     get_project, get_subproject, get_translation
 )
 from weblate.trans.filelock import FileLockException
 from weblate.trans.util import redirect_param
-from weblate.trans.permissions import (
+from weblate.permissions.helpers import (
     can_commit_translation, can_update_translation, can_reset_translation,
     can_push_translation, can_remove_translation,
 )
@@ -39,9 +39,7 @@ from weblate.utils.errors import report_error
 
 
 def execute_locked(request, obj, message, call, *args, **kwargs):
-    """
-    Helper function to catch possible lock exception.
-    """
+    """Helper function to catch possible lock exception."""
     try:
         result = call(*args, **kwargs)
         # With False the call is supposed to show errors on its own
@@ -60,9 +58,7 @@ def execute_locked(request, obj, message, call, *args, **kwargs):
 
 
 def perform_commit(request, obj):
-    """
-    Helper function to do the repository commmit.
-    """
+    """Helper function to do the repository commmit."""
     return execute_locked(
         request,
         obj,
@@ -73,23 +69,19 @@ def perform_commit(request, obj):
 
 
 def perform_update(request, obj):
-    """
-    Helper function to do the repository update.
-    """
+    """Helper function to do the repository update."""
     return execute_locked(
         request,
         obj,
         _('All repositories were updated.'),
         obj.do_update,
         request,
-        method=request.GET.get('method', None),
+        method=request.GET.get('method'),
     )
 
 
 def perform_push(request, obj):
-    """
-    Helper function to do the repository push.
-    """
+    """Helper function to do the repository push."""
     return execute_locked(
         request,
         obj,
@@ -100,9 +92,7 @@ def perform_push(request, obj):
 
 
 def perform_reset(request, obj):
-    """
-    Helper function to do the repository reset.
-    """
+    """Helper function to do the repository reset."""
     return execute_locked(
         request,
         obj,

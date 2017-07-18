@@ -12,6 +12,37 @@ to authenticate.
 You can also completely disable new users registration using
 :setting:`REGISTRATION_OPEN`.
 
+.. _rate-limit:
+
+Rate limiting
+-------------
+
+.. versionadded:: 2.14
+
+The password based authentication is subject to rate limiting. At most
+:setting:`AUTH_MAX_ATTEMPTS` attempts are allowed within
+:setting:`AUTH_CHECK_WINDOW` seconds. The user is then blocked
+for :setting:`AUTH_LOCKOUT_TIME`.
+
+If there are more than :setting:`AUTH_LOCK_ATTEMPTS` failed authentication
+attempts on one account, this account password authentication is disabled and
+it's not possible to login until user asks for password reset.
+
+.. _rate-ip:
+
+IP address for rate limiting
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The rate limiting is based on client IP address. This is obtained from HTTP
+headers and you will have to change configuration in case Weblate is running
+behind reverse proxy to work it properly.
+
+.. seealso::
+
+    :setting:`IP_BEHIND_REVERSE_PROXY`,
+    :setting:`IP_PROXY_HEADER`,
+    :setting:`IP_PROXY_OFFSET`
+
 Authentication backends
 -----------------------
 
@@ -26,20 +57,19 @@ well.
 Social authentication
 ---------------------
 
-Thanks to `python-social-auth <http://psa.matiasaguirre.net/>`_, Weblate
+Thanks to `python-social-auth <https://python-social-auth.readthedocs.io/>`_, Weblate
 support authentication using many third party services such as Facebook,
 GitHub, Google or Bitbucket.
 
-Please check their documentation for generic configuration instructions:
-
-http://psa.matiasaguirre.net/docs/configuration/django.html
+Please check their documentation for generic configuration instructions
+in :doc:`psa:configuration/django`.
 
 .. note::
 
     By default, Weblate relies on third-party authentication services to
     provide validated email address, in case some of services you want to use
     do not support this, please remove
-    ``social.pipeline.social_auth.associate_by_email`` from
+    ``social_core.pipeline.social_auth.associate_by_email`` from
     ``SOCIAL_AUTH_PIPELINE`` settings.
 
 Enabling individual backends is quite easy, it's just a matter of adding entry to
@@ -58,10 +88,10 @@ section enables OpenID authentication for OpenSUSE, Fedora and Ubuntu:
 
     # Authentication configuration
     AUTHENTICATION_BACKENDS = (
-        'social.backends.email.EmailAuth',
-        'social.backends.suse.OpenSUSEOpenId',
-        'social.backends.ubuntu.UbuntuOpenId',
-        'social.backends.fedora.FedoraOpenId',
+        'social_core.backends.email.EmailAuth',
+        'social_core.backends.suse.OpenSUSEOpenId',
+        'social_core.backends.ubuntu.UbuntuOpenId',
+        'social_core.backends.fedora.FedoraOpenId',
         'weblate.accounts.auth.WeblateUserBackend',
     )
 
@@ -76,8 +106,8 @@ You need to register application on GitHub and then tell Weblate all the secrets
 
     # Authentication configuration
     AUTHENTICATION_BACKENDS = (
-        'social.backends.github.GithubOAuth2',
-        'social.backends.email.EmailAuth',
+        'social_core.backends.github.GithubOAuth2',
+        'social_core.backends.email.EmailAuth',
         'weblate.accounts.auth.WeblateUserBackend',
     )
 
@@ -88,7 +118,7 @@ You need to register application on GitHub and then tell Weblate all the secrets
 
 .. seealso::
 
-    `Python Social Auth backends <http://psa.matiasaguirre.net/docs/backends/index.html>`_
+    :doc:`Python Social Auth backend <psa:backends/index>`
 
 .. _bitbucket_auth:
 
@@ -101,8 +131,8 @@ You need to register application on Bitbucket and then tell Weblate all the secr
 
     # Authentication configuration
     AUTHENTICATION_BACKENDS = (
-        'social.backends.bitbucket.BitbucketOAuth',
-        'social.backends.email.EmailAuth',
+        'social_core.backends.bitbucket.BitbucketOAuth',
+        'social_core.backends.email.EmailAuth',
         'weblate.accounts.auth.WeblateUserBackend',
     )
 
@@ -113,7 +143,7 @@ You need to register application on Bitbucket and then tell Weblate all the secr
 
 .. seealso::
 
-    `Python Social Auth backends <http://psa.matiasaguirre.net/docs/backends/index.html>`_
+    :doc:`Python Social Auth backend <psa:backends/index>`
 
 .. _google_auth:
 
@@ -129,8 +159,8 @@ The redirect URL is ``https://WEBLATE SERVER/accounts/complete/google-oauth2/``
 
     # Authentication configuration
     AUTHENTICATION_BACKENDS = (
-        'social.backends.google.GoogleOAuth2',
-        'social.backends.email.EmailAuth',
+        'social_core.backends.google.GoogleOAuth2',
+        'social_core.backends.email.EmailAuth',
         'weblate.accounts.auth.WeblateUserBackend',
     )
 
@@ -150,8 +180,8 @@ Facebook. Once this is done, you can configure Weblate to use it:
 
     # Authentication configuration
     AUTHENTICATION_BACKENDS = (
-        'social.backends.facebook.FacebookOAuth2',
-        'social.backends.email.EmailAuth',
+        'social_core.backends.facebook.FacebookOAuth2',
+        'social_core.backends.email.EmailAuth',
         'weblate.accounts.auth.WeblateUserBackend',
     )
 
@@ -159,6 +189,32 @@ Facebook. Once this is done, you can configure Weblate to use it:
     SOCIAL_AUTH_FACEBOOK_KEY = 'key'
     SOCIAL_AUTH_FACEBOOK_SECRET = 'secret'
     SOCIAL_AUTH_FACEBOOK_SCOPE = ['email', 'public_profile']
+
+
+.. _gitlab_auth:
+
+Gitlab OAuth2
+~~~~~~~~~~~~~
+
+For using Gitlab OAuth2, you need to register application on
+<https://gitlab.com/profile/applications>.
+
+The redirect URL is ``https://WEBLATE SERVER/accounts/complete/gitlab/`` and
+ensure to mark the `read_user` scope.
+
+.. code-block:: python
+
+    # Authentication configuration
+    AUTHENTICATION_BACKENDS = (
+        'social_core.backends.gitlab.GitLabOAuth2',
+        'social_core.backends.email.EmailAuth',
+        'weblate.accounts.auth.WeblateUserBackend',
+    )
+
+    # Social auth backends setup
+    SOCIAL_AUTH_GITLAB_KEY = 'Application ID'
+    SOCIAL_AUTH_GITLAB_SECRET = 'Secret'
+    SOCIAL_AUTH_GITLAB_SCOPE = ['api']
 
 
 LDAP authentication
@@ -204,7 +260,7 @@ Once you have the package installed, you can hook it to Django authentication:
 
 .. seealso::
 
-    `Django Authentication Using LDAP <http://pythonhosted.org/django-auth-ldap/>`_
+    `Django Authentication Using LDAP <https://pythonhosted.org/django-auth-ldap/>`_
 
 
 CAS authentication
@@ -250,7 +306,7 @@ this to work you have to import the signal from the `django-cas-ng` package and
 connect your code with this signal. Doing this inside your settings file can
 cause problems, therefore it's suggested to put it:
 
-- in your app config's `ready <https://docs.djangoproject.com/en/stable/ref/applications/#django.apps.AppConfig.ready>`_ method (Django 1.7 and higher)
+- in your app config's :py:meth:`django:django.apps.AppConfig.ready` method (Django 1.7 and higher)
 - at the end of your :file:`models.py` file (Django 1.6 and lower)
 - in the project's :file:`urls.py` file (when no models exist)
 

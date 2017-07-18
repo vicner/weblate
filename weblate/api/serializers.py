@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,14 +15,19 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from rest_framework import serializers
 
-from weblate.trans.models import Project, SubProject, Translation, Unit, Change
+from weblate.trans.models import (
+    Project, SubProject, Translation, Unit, Change, Source,
+)
 from weblate.lang.models import Language
+from weblate.permissions.helpers import can_see_git_repository
+from weblate.screenshots.models import Screenshot
 from weblate.trans.site import get_site_url
+from weblate.utils.validators import validate_bitmap
 
 
 class MultiFieldHyperlinkedIdentityField(serializers.HyperlinkedIdentityField):
@@ -172,6 +177,17 @@ class ComponentSerializer(RemovableSerializer):
             }
         }
 
+    def to_representation(self, instance):
+        """Remove VCS properties if user has no permission for that"""
+        result = super(ComponentSerializer, self).to_representation(instance)
+        user = self.context['request'].user
+        if not can_see_git_repository(user, instance.project):
+            result['vcs'] = None
+            result['repo'] = None
+            result['branch'] = None
+            result['filemask'] = None
+        return result
+
 
 class TranslationSerializer(RemovableSerializer):
     web_url = AbsoluteURLField(
@@ -294,6 +310,10 @@ class LockRequestSerializer(ReadOnlySerializer):
     lock = serializers.BooleanField()
 
 
+class UploadRequestSerializer(ReadOnlySerializer):
+    overwrite = serializers.BooleanField()
+
+
 class RepoRequestSerializer(ReadOnlySerializer):
     operation = serializers.ChoiceField(
         choices=('commit', 'pull', 'push', 'reset')
@@ -318,19 +338,100 @@ class UnitSerializer(RemovableSerializer):
         ),
         strip_parts=1,
     )
+    source_info = serializers.HyperlinkedRelatedField(
+        read_only=True,
+        source='source_info.pk',
+        view_name='api:source-detail'
+    )
 
     class Meta(object):
         model = Unit
         fields = (
-            'translation', 'source', 'previous_source', 'target', 'checksum',
-            'contentsum', 'location', 'context', 'comment', 'flags', 'fuzzy',
+            'translation', 'source', 'previous_source', 'target', 'id_hash',
+            'content_hash', 'location', 'context', 'comment', 'flags', 'fuzzy',
             'translated', 'position', 'has_suggestion', 'has_comment',
             'has_failing_check', 'num_words', 'priority', 'id', 'web_url',
-            'url',
+            'url', 'source_info',
         )
         extra_kwargs = {
             'url': {
                 'view_name': 'api:unit-detail',
+            },
+        }
+
+
+class SourceSerializer(RemovableSerializer):
+    component = MultiFieldHyperlinkedIdentityField(
+        view_name='api:component-detail',
+        lookup_field=('subproject__project__slug', 'subproject__slug'),
+        strip_parts=1,
+    )
+    units = serializers.HyperlinkedRelatedField(
+        read_only=True,
+        many=True,
+        view_name='api:unit-detail'
+    )
+    screenshots = serializers.HyperlinkedRelatedField(
+        read_only=True,
+        many=True,
+        view_name='api:screenshot-detail'
+    )
+
+    class Meta(object):
+        model = Source
+        fields = (
+            'id_hash', 'component', 'timestamp', 'priority', 'check_flags',
+            'url', 'units', 'screenshots',
+        )
+        extra_kwargs = {
+            'url': {
+                'view_name': 'api:source-detail',
+            },
+        }
+
+
+class ScreenshotSerializer(RemovableSerializer):
+    component = MultiFieldHyperlinkedIdentityField(
+        view_name='api:component-detail',
+        lookup_field=('component__project__slug', 'component__slug'),
+        strip_parts=1,
+    )
+    file_url = serializers.HyperlinkedRelatedField(
+        read_only=True,
+        source='pk',
+        view_name='api:screenshot-file'
+    )
+    sources = serializers.HyperlinkedRelatedField(
+        many=True,
+        read_only=True,
+        view_name='api:source-detail'
+    )
+
+    class Meta(object):
+        model = Screenshot
+        fields = (
+            'name', 'component', 'file_url', 'sources', 'url',
+        )
+        extra_kwargs = {
+            'url': {
+                'view_name': 'api:screenshot-detail',
+            },
+        }
+
+
+class ScreenshotFileSerializer(serializers.ModelSerializer):
+    image = serializers.ImageField(
+        validators=[validate_bitmap]
+    )
+
+    class Meta(object):
+        model = Screenshot
+        fields = (
+            'image',
+        )
+        extra_kwargs = {
+            'url': {
+                'view_name': 'api:screenshot-file',
             },
         }
 

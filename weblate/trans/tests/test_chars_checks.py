@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 """
@@ -29,7 +29,7 @@ from weblate.trans.checks.chars import (
     BeginSpaceCheck, EndSpaceCheck,
     EndStopCheck, EndColonCheck,
     EndQuestionCheck, EndExclamationCheck,
-    EndEllipsisCheck,
+    EndEllipsisCheck, EndSemicolonCheck,
     NewlineCountingCheck,
     ZeroWidthSpaceCheck,
     MaxLengthCheck,
@@ -169,6 +169,7 @@ class EndQuestionCheckTest(CheckTestCase):
 
     def test_greek(self):
         self.do_test(False, ('Text?', 'Texte;', ''), 'el')
+        self.do_test(False, ('Text?', 'Texte;', ''), 'el')
 
     def test_greek_ignore(self):
         self.do_test(False, ('Text', 'Texte', ''), 'el')
@@ -296,3 +297,14 @@ class MaxLengthCheckTest(TestCase):
                 MockUnit(flags=('max-length:3,max-length:12'))
             )
         )
+
+
+class EndSemicolonCheckTest(CheckTestCase):
+    check = EndSemicolonCheck()
+
+    def setUp(self):
+        super(EndSemicolonCheckTest, self).setUp()
+        self.test_good_matching = ('string;', 'string;', '')
+        self.test_failure_1 = ('string;', 'string', '')
+        self.test_failure_2 = ('string:', 'string;', '')
+        self.test_failure_3 = ('string', 'string;', '')

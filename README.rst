@@ -7,7 +7,7 @@ Weblate
 
 .. image:: https://ci.appveyor.com/api/projects/status/92elnra2etjgfpc8/branch/master?svg=true
     :target: https://ci.appveyor.com/project/nijel/weblate/branch/master
-    :target: Build status
+    :alt: Build status
 
 .. image:: https://hosted.weblate.org/widgets/weblate/-/svg-badge.svg
     :alt: Translation status
@@ -21,13 +21,13 @@ Weblate
     :alt: Code Health
     :target: https://landscape.io/github/WeblateOrg/weblate/master
 
-.. image:: https://www.codacy.com/project/badge/394a22d396414d48abb6a85054f4415e
+.. image:: https://api.codacy.com/project/badge/Grade/394a22d396414d48abb6a85054f4415e
     :alt: Codacy Badge
-    :target: https://www.codacy.com/public/nijel/weblate
+    :target: https://www.codacy.com/app/Weblate/weblate
 
-.. image:: https://buildtimetrend.herokuapp.com/badge/WeblateOrg/weblate
-    :alt: Buildtime Trend badge
-    :target: https://buildtimetrend.herokuapp.com/dashboard/WeblateOrg/weblate
+.. image:: https://www.quantifiedcode.com/api/v1/project/7a0d0496a5c2496080db30f17a584b9d/badge.svg
+    :target: https://www.quantifiedcode.com/app/project/7a0d0496a5c2496080db30f17a584b9d
+    :alt: Code issues
 
 .. image:: https://api.bountysource.com/badge/tracker?tracker_id=253393
     :alt: Bountysource
@@ -89,7 +89,7 @@ Please report bugs to https://github.com/WeblateOrg/weblate/issues.
 License
 -------
 
-Copyright (C) 2012 - 2016 Michal Čihař michal@cihar.com
+Copyright (C) 2012 - 2017 Michal Čihař michal@cihar.com
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -101,4 +101,4 @@ WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
 PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program. If not, see http://www.gnu.org/licenses/.
+this program. If not, see https://www.gnu.org/licenses/.

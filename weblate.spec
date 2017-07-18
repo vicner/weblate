@@ -4,7 +4,7 @@
 %define WLETCDIR %{_sysconfdir}/weblate
 Name:           weblate
 %define _name Weblate
-Version:        2.11
+Version:        2.16
 Release:        0
 Summary:        Web-based translation tool
 License:        GPL-3.0+
@@ -17,37 +17,39 @@ BuildRequires:  graphviz
 BuildRequires:  graphviz-gd
 BuildRequires:  mercurial
 BuildRequires:  python-Babel
-BuildRequires:  python-Django >= 1.9
+BuildRequires:  python-Django >= 1.10
 BuildRequires:  python-Pillow
 BuildRequires:  python-Sphinx
 BuildRequires:  python-dateutil
 BuildRequires:  python-defusedxml
-BuildRequires:  python-django-crispy-forms >= 1.4.0
-BuildRequires:  python-django_compressor >= 2.1
+BuildRequires:  python-django-crispy-forms >= 1.6.1
+BuildRequires:  python-django_compressor >= 2.1.1
 BuildRequires:  python-djangorestframework >= 3.3
 BuildRequires:  python-httpretty
-BuildRequires:  python-python-social-auth >= 0.2
+BuildRequires:  python-social-auth-app-django >= 1.2.0
+BuildRequires:  python-social-auth-core >= 1.3.0
 BuildRequires:  python-selenium
 BuildRequires:  python-sphinxcontrib-httpdomain
-BuildRequires:  python-Whoosh >= 2.6.1
+BuildRequires:  python-Whoosh >= 2.7.0
 BuildRequires:  git-review
 BuildRequires:  git-svn
 BuildRequires:  python-PyYAML
-BuildRequires:  translate-toolkit >= 1.14.0
+BuildRequires:  translate-toolkit >= 2.0.0
 Requires:       apache2-mod_wsgi
 Requires:       cron
 Requires:       git
 Requires:       python-Babel
 Requires:       python-defusedxml
-Requires:       python-Django >= 1.9
-Requires:       python-django_compressor >= 2.1
+Requires:       python-Django >= 1.10
+Requires:       python-django_compressor >= 2.1.1
 Requires:       python-djangorestframework >= 3.3
 Requires:       python-Pillow
 Requires:       python-dateutil
-Requires:       python-django-crispy-forms >= 1.4.0
-Requires:       python-python-social-auth >= 0.2
-Requires:       python-Whoosh >= 2.6.1
-Requires:       translate-toolkit >= 1.14.0
+Requires:       python-django-crispy-forms >= 1.6.1
+Requires:       python-social-auth-app-django >= 1.2.0
+Requires:       python-social-auth-core >= 1.3.0
+Requires:       python-Whoosh >= 2.7.0
+Requires:       translate-toolkit >= 2.0.0
 Recommends:     git-review
 Recommends:     git-svn
 Recommends:     mercurial
@@ -57,6 +59,7 @@ Recommends:     python-psycopg2
 Recommends:     python-pyuca
 Recommends:     python-python-bidi
 Recommends:     python-python-memcached
+Recommends:     python-tesserocr
 BuildRoot:      %{_tmppath}/%{name}-%{version}-build
 BuildArch:      noarch
 %py_requires

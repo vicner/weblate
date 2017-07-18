@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
@@ -24,9 +24,10 @@ import os
 import codecs
 from datetime import timedelta
 
+from django.conf import settings
 from django.db import models
 from django.contrib.auth.models import User
-from django.db.models import Q, Sum, Count
+from django.db.models import Sum, Count
 from django.utils.translation import ugettext as _
 from django.utils.safestring import mark_safe
 from django.utils.encoding import python_2_unicode_compatible, force_text
@@ -35,9 +36,8 @@ from django.core.cache import cache
 from django.utils import timezone
 from django.core.urlresolvers import reverse
 
-from weblate import appsettings
 from weblate.lang.models import Language
-from weblate.trans.formats import AutoFormat, StringIOMode, ParseError
+from weblate.trans.formats import ParseError, try_load
 from weblate.trans.checks import CHECKS
 from weblate.trans.models.unit import Unit
 from weblate.trans.models.suggestion import Suggestion
@@ -47,7 +47,8 @@ from weblate.trans.util import translation_percent, split_plural
 from weblate.accounts.avatar import get_user_display
 from weblate.trans.mixins import URLMixin, PercentMixin, LoggerMixin
 from weblate.trans.boolean_sum import do_boolean_sum
-from weblate.accounts.models import notify_new_string, get_author_name
+from weblate.accounts.notifications import notify_new_string
+from weblate.accounts.models import get_author_name
 from weblate.trans.models.change import Change
 from weblate.trans.checklists import TranslationChecklist
 
@@ -62,7 +63,7 @@ class TranslationManager(models.Manager):
 
     def check_sync(self, subproject, lang, code, path, force=False,
                    request=None):
-        """Parses translation meta info and updates translation object"""
+        """Parse translation meta info and updates translation object"""
         translation, dummy = self.get_or_create(
             language=lang,
             subproject=subproject,
@@ -80,11 +81,11 @@ class TranslationManager(models.Manager):
         return translation
 
     def enabled(self):
-        """Filters enabled translations."""
+        """Filter enabled translations."""
         return self.prefetch().filter(enabled=True)
 
     def get_percents(self, project=None, subproject=None, language=None):
-        """Returns tuple consting of status percents:
+        """Return tuple consting of status percents:
 
         (translated, fuzzy, failing checks)
         """
@@ -154,6 +155,7 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
     objects = TranslationManager()
 
     is_lockable = False
+    _reverse_url_name = 'translation'
 
     class Meta(object):
         ordering = ['language__name']
@@ -168,6 +170,7 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
                 'reset_translation',
                 "Can reset translations to match remote VCS"
             ),
+            ('mass_add_translation', 'Can mass add translation'),
             ('automatic_translation', "Can do automatic translation"),
             ('lock_translation', "Can lock whole translation project"),
             ('use_mt', "Can use machine translation"),
@@ -181,6 +184,7 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
         self._store = None
         self._last_change_obj = None
         self._last_change_obj_valid = False
+        self._skip_commit = False
 
     @property
     def log_prefix(self):
@@ -197,24 +201,15 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
             self.language.code,
         ))
 
-    def has_acl(self, user):
-        """Checks whether current user is allowed to access this object"""
-        return self.subproject.project.has_acl(user)
-
-    def check_acl(self, request):
-        """Raises an error if user is not allowed to access this project."""
-        self.subproject.project.check_acl(request)
-
     def is_template(self):
-        """Checks whether this is template translation
+        """Check whether this is template translation
 
         This means that translations should be propagated as sources to others.
         """
         return self.filename == self.subproject.template
 
     def clean(self):
-        """
-        Validates that filename exists and can be opened using
+        """Validate that filename exists and can be opened using
         translate-toolkit.
         """
         if not os.path.exists(self.get_filename()):
@@ -236,7 +231,7 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
             )
 
     def _get_percents(self):
-        """Returns percentages of translation status."""
+        """Return percentages of translation status."""
         return (
             translation_percent(self.translated, self.total),
             translation_percent(self.fuzzy, self.total),
@@ -259,7 +254,7 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
         return self.total - self.translated
 
     def get_lock_user_display(self):
-        """Returns formatted lock user."""
+        """Return formatted lock user."""
         return get_user_display(self.lock_user)
 
     def get_lock_display(self):
@@ -280,7 +275,7 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
         )
 
     def is_user_locked(self, user=None):
-        """Checks whether there is valid user lock on this translation."""
+        """Check whether there is valid user lock on this translation."""
         # Any user?
         if self.lock_user is None:
             return False
@@ -299,7 +294,7 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
             return True
 
     def create_lock(self, user, explicit=False):
-        """Creates lock on translation."""
+        """Create lock on translation."""
         is_new = self.lock_user is None
         self.lock_user = user
 
@@ -312,11 +307,11 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
         self.update_lock_time(explicit, is_new)
 
     def update_lock_time(self, explicit=False, is_new=True):
-        """Sets lock timestamp."""
+        """Set lock timestamp."""
         if explicit:
-            seconds = appsettings.LOCK_TIME
+            seconds = settings.LOCK_TIME
         else:
-            seconds = appsettings.AUTO_LOCK_TIME
+            seconds = settings.AUTO_LOCK_TIME
 
         new_lock_time = timezone.now() + timedelta(seconds=seconds)
 
@@ -326,7 +321,7 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
         self.save()
 
     def update_lock(self, user, create=True):
-        """Updates lock timestamp."""
+        """Update lock timestamp."""
         # Check if we can lock
         if self.is_user_locked(user):
             return False
@@ -337,18 +332,14 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
             return True
 
         # Auto lock if we should
-        if appsettings.AUTO_LOCK and create:
+        if settings.AUTO_LOCK and create:
             self.create_lock(user)
             return True
 
         return False
 
-    def _reverse_url_name(self):
-        """Returns base name for URL reversing."""
-        return 'translation'
-
     def _reverse_url_kwargs(self):
-        """Returns kwargs for URL reversing."""
+        """Return kwargs for URL reversing."""
         return {
             'project': self.subproject.project.slug,
             'subproject': self.subproject.slug,
@@ -356,20 +347,20 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
         }
 
     def get_widgets_url(self):
-        """Returns absolute URL for widgets."""
+        """Return absolute URL for widgets."""
         return get_site_url(
-            '%s?lang=%s' % (
+            '{0}?lang={1}'.format(
                 reverse(
                     'widgets', kwargs={
                         'project': self.subproject.project.slug,
                     }
                 ),
-                self.language.code,
+                self.language.code
             )
         )
 
     def get_share_url(self):
-        """Returns absolute URL usable for sharing."""
+        """Return absolute URL usable for sharing."""
         return get_site_url(
             reverse(
                 'engage-lang',
@@ -389,17 +380,17 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
         })
 
     def __str__(self):
-        return '%s - %s' % (
+        return '{0} - {1}'.format(
             force_text(self.subproject),
             force_text(self.language)
         )
 
     def get_filename(self):
-        """Returns absolute filename."""
+        """Return absolute filename."""
         return os.path.join(self.subproject.get_path(), self.filename)
 
     def load_store(self):
-        """Loads translate-toolkit storage from disk."""
+        """Load translate-toolkit storage from disk."""
         return self.subproject.file_format_cls.parse(
             self.get_filename(),
             self.subproject.template_store,
@@ -407,12 +398,12 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
         )
 
     def supports_language_pack(self):
-        """Checks whether we support language pack download."""
+        """Check whether we support language pack download."""
         return self.subproject.file_format_cls.language_pack is not None
 
     @property
     def store(self):
-        """Returns translate-toolkit storage object for a translation."""
+        """Return translate-toolkit storage object for a translation."""
         if self._store is None:
             try:
                 self._store = self.load_store()
@@ -423,7 +414,7 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
         return self._store
 
     def check_sync(self, force=False, request=None, change=None):
-        """Checks whether database is in sync with git and possibly updates"""
+        """Check whether database is in sync with git and possibly updates"""
 
         if change is None:
             change = Change.ACTION_UPDATE
@@ -468,9 +459,9 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
                 (is_new and not newunit.translated) or
                 (
                     not newunit.translated and
-                    newunit.translated != newunit.old_translated
+                    newunit.translated != newunit.old_unit.translated
                 ) or
-                (newunit.fuzzy and newunit.fuzzy != newunit.old_fuzzy)
+                (newunit.fuzzy and newunit.fuzzy != newunit.old_unit.fuzzy)
             )
 
             # Update position
@@ -512,6 +503,7 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
 
         # Update revision and stats
         self.update_stats()
+        self.store_hash()
 
         # Cleanup checks cache if there were some deleted units
         if deleted_units:
@@ -545,7 +537,7 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
         return self.subproject.can_push()
 
     def get_git_blob_hash(self):
-        """Returns current VCS blob hash for file."""
+        """Return current VCS blob hash for file."""
         ret = self.subproject.repository.get_object_hash(self.get_filename())
 
         if not self.subproject.has_template():
@@ -559,7 +551,7 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
         ])
 
     def update_stats(self):
-        """Updates translation statistics."""
+        """Update translation statistics."""
         # Grab stats
         stats = self.unit_set.aggregate(
             Sum('num_words'),
@@ -569,6 +561,9 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
             has_failing_check__sum=do_boolean_sum('has_failing_check'),
             has_suggestion__sum=do_boolean_sum('has_suggestion'),
             has_comment__sum=do_boolean_sum('has_comment'),
+            translated_words__sum=do_boolean_sum('translated', 'num_words'),
+            fuzzy_words__sum=do_boolean_sum('fuzzy', 'num_words'),
+            check_words__sum=do_boolean_sum('has_failing_check', 'num_words'),
         )
 
         # Check if we have any units
@@ -580,6 +575,9 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
             self.failing_checks = 0
             self.have_suggestion = 0
             self.have_comment = 0
+            self.translated_words = 0
+            self.fuzzy_words = 0
+            self.failing_checks_words = 0
         else:
             self.total_words = stats['num_words__sum']
             self.total = stats['id__count']
@@ -588,48 +586,19 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
             self.failing_checks = int(stats['has_failing_check__sum'])
             self.have_suggestion = int(stats['has_suggestion__sum'])
             self.have_comment = int(stats['has_comment__sum'])
+            self.translated_words = int(stats['translated_words__sum'])
+            self.fuzzy_words = int(stats['fuzzy_words__sum'])
+            self.failing_checks_words = int(stats['check_words__sum'])
 
-        # Count translated words
-        self.translated_words = self.unit_set.filter(
-            translated=True
-        ).aggregate(
-            Sum('num_words')
-        )['num_words__sum']
-        # Nothing matches filter
-        if self.translated_words is None:
-            self.translated_words = 0
-
-        # Count fuzzy words
-        self.fuzzy_words = self.unit_set.filter(
-            fuzzy=True
-        ).aggregate(
-            Sum('num_words')
-        )['num_words__sum']
-        # Nothing matches filter
-        if self.fuzzy_words is None:
-            self.fuzzy_words = 0
-
-        # Count words with failing checks
-        self.failing_checks_words = self.unit_set.filter(
-            has_failing_check=True
-        ).aggregate(
-            Sum('num_words')
-        )['num_words__sum']
-        # Nothing matches filter
-        if self.failing_checks_words is None:
-            self.failing_checks_words = 0
-
-        # Store hash will save object
-        self.store_hash()
-
-    def store_hash(self):
-        """Stores current hash in database."""
-        blob_hash = self.get_git_blob_hash()
-        self.revision = blob_hash
         self.save()
 
+    def store_hash(self):
+        """Store current hash in database."""
+        self.revision = self.get_git_blob_hash()
+        self.save(update_fields=['revision'])
+
     def get_last_author(self, email=False):
-        """Returns last autor of change done in Weblate."""
+        """Return last autor of change done in Weblate."""
         if self.last_change_obj is None:
             return None
         return get_author_name(
@@ -654,13 +623,15 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
 
     @property
     def last_change(self):
-        """Returns date of last change done in Weblate."""
+        """Return date of last change done in Weblate."""
         if self.last_change_obj is None:
             return None
         return self.last_change_obj.timestamp
 
     def commit_pending(self, request, author=None, skip_push=False):
-        """Commits any pending changes."""
+        """Commit any pending changes."""
+        if self._skip_commit:
+            return False
         # Get author of last changes
         last = self.get_last_author(True)
 
@@ -675,7 +646,7 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
         return True
 
     def get_commit_message(self):
-        """Formats commit message based on project configuration."""
+        """Format commit message based on project configuration."""
         template = self.subproject.commit_message
         if self.commit_message == '__add__':
             template = self.subproject.add_message
@@ -693,6 +664,7 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
             'resource': self.subproject.name,
             'component': self.subproject.name,
             'project': self.subproject.project.name,
+            'url': get_site_url(self.get_absolute_url()),
             'total': self.total,
             'fuzzy': self.fuzzy,
             'fuzzy_percent': self.get_fuzzy_percent(),
@@ -700,14 +672,14 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
             'translated_percent': self.get_translated_percent(),
         }
         if self.commit_message:
-            msg = '%s\n\n%s' % (msg, self.commit_message)
+            msg = '{0}\n\n{1}'.format(msg, self.commit_message)
             self.commit_message = ''
             self.save()
 
         return msg
 
     def __git_commit(self, author, timestamp, sync=False):
-        """Commits translation to git."""
+        """Commit translation to git."""
 
         # Format commit message
         msg = self.get_commit_message()
@@ -742,7 +714,7 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
             self.store_hash()
 
     def repo_needs_commit(self):
-        """Checks whether there are some not committed changes."""
+        """Check whether there are some not committed changes."""
         return self.subproject.repository.needs_commit(self.filename)
 
     def repo_needs_merge(self):
@@ -760,13 +732,15 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
         sync updates git hash stored within the translation (otherwise
         translation rescan will be needed)
         """
-        with self.subproject.repository.lock():
+        if self._skip_commit:
+            return False
+        with self.subproject.repository.lock:
             # Is there something for commit?
             if not force_new and not self.repo_needs_commit():
                 return False
 
             # Can we delay commit?
-            if not force_commit and appsettings.LAZY_COMMITS:
+            if not force_commit and settings.LAZY_COMMITS:
                 self.log_info(
                     'delaying commiting %s as %s',
                     self.filename,
@@ -795,11 +769,11 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
         return True
 
     def update_unit(self, unit, request, user=None):
-        """Updates backend file and unit."""
+        """Update backend file and unit."""
         if user is None:
             user = request.user
         # Save with lock acquired
-        with self.subproject.repository.lock():
+        with self.subproject.repository.lock:
 
             src = unit.get_source_plurals()[0]
             add = False
@@ -816,6 +790,12 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
                     unit.fuzzy == pounit.is_fuzzy()):
                 return False, pounit
 
+            # Optionally add unit to translation file.
+            # This has be done prior setting tatget as some formats
+            # generate content based on target language.
+            if add:
+                self.store.add_unit(pounit)
+
             # Store translations
             if unit.is_plural():
                 pounit.set_target(unit.get_target_plurals())
@@ -824,10 +804,6 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
 
             # Update fuzzy flag
             pounit.mark_fuzzy(unit.fuzzy)
-
-            # Optionally add unit to translation file
-            if add:
-                self.store.add_unit(pounit)
 
             # We need to update backend now
             author = get_author_name(user)
@@ -848,9 +824,9 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
 
             # Optionally store language team with link to website
             if self.subproject.project.set_translation_team:
-                headers['language_team'] = '%s <%s>' % (
+                headers['language_team'] = '{0} <{1}>'.format(
                     self.language.name,
-                    get_site_url(self.get_absolute_url()),
+                    get_site_url(self.get_absolute_url())
                 )
 
             # Optionally store email for reporting bugs in source
@@ -873,7 +849,7 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
         return True, pounit
 
     def get_source_checks(self):
-        """Returns list of failing source checks on current subproject."""
+        """Return list of failing source checks on current subproject."""
         result = TranslationChecklist()
         result.add(
             'all',
@@ -896,9 +872,9 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
             if not check_obj.source:
                 continue
             result.add_if(
-                check,
+                check_obj.url_id,
                 check_obj.description,
-                self.unit_set.count_type(check, self),
+                self.unit_set.count_type(check_obj.url_id, self),
                 check_obj.severity,
             )
 
@@ -913,7 +889,7 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
         return result
 
     def get_translation_checks(self):
-        """Returns list of failing checks on current translation."""
+        """Return list of failing checks on current translation."""
         result = TranslationChecklist()
 
         # All strings
@@ -983,9 +959,9 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
             if not check_obj.target:
                 continue
             result.add_if(
-                check,
+                check_obj.url_id,
                 check_obj.description,
-                self.unit_set.count_type(check, self),
+                self.unit_set.count_type(check_obj.url_id, self),
                 check_obj.severity,
             )
 
@@ -997,114 +973,107 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
             'info',
         )
 
+        # Random
+        if self.translated:
+            result.add_if(
+                'random',
+                _('Random strings for review'),
+                min(25, self.translated),
+                'info',
+            )
+
         return result
 
-    def merge_translations(self, request, store2, overwrite, add_fuzzy, fuzzy):
-        """Merges translation unit wise
+    def merge_translations(self, request, store2, overwrite, add_fuzzy,
+                           fuzzy, merge_header):
+        """Merge translation unit wise
 
         Needed for template based translations to add new strings.
         """
-        ret = False
+        not_found = 0
+        skipped = 0
+        accepted = 0
+
+        author = get_author_name(request.user)
+
+        # Commit possible prior changes
+        self.commit_pending(request, author)
+        # Avoid committing while we're importing
+        self._skip_commit = True
 
         for set_fuzzy, unit2 in store2.iterate_merge(fuzzy):
             try:
-                unit = self.unit_set.get(
-                    source=unit2.get_source(),
-                    context=unit2.get_context(),
-                )
+                unit = self.unit_set.get_unit(unit2)
             except Unit.DoesNotExist:
+                not_found += 1
                 continue
 
             if unit.translated and not overwrite:
+                skipped += 1
                 continue
 
-            ret = True
+            accepted += 1
 
+            # We intentionally avoid propagating:
+            # - in most cases it's not desired
+            # - it slows down import considerably
+            # - it brings locking issues as import is
+            #   executed with lock held and linked repos
+            #   can't obtain the lock
             unit.translate(
                 request,
                 split_plural(unit2.get_target()),
-                add_fuzzy or set_fuzzy
+                add_fuzzy or set_fuzzy,
+                change_action=Change.ACTION_UPLOAD,
+                propagate=False
             )
 
-        return ret
+        self._skip_commit = False
 
-    def merge_store(self, request, author, store2, overwrite, merge_header,
-                    add_fuzzy, fuzzy, merge_comments):
-        """Merges translate-toolkit store into current translation."""
-        # Merge with lock acquired
-        with self.subproject.repository.lock():
-
-            store1 = self.store.store
-            store1.require_index()
+        if accepted > 0:
+            self.update_stats()
 
             if merge_header:
                 self.store.merge_header(store2)
+                self.store.save()
+            self.store_hash()
 
-            for set_fuzzy, unit2 in store2.iterate_merge(fuzzy):
+            self.git_commit(
+                request, author, timezone.now(),
+                force_commit=True, sync=True
+            )
 
-                # Find unit by ID
-                unit1 = store1.findid(unit2.unit.getid())
-
-                # Fallback to finding by source
-                if unit1 is None:
-                    unit1 = store1.findunit(unit2.unit.source)
-
-                # Unit not found, nothing to do
-                if unit1 is None:
-                    continue
-
-                # Should we overwrite
-                if not overwrite and unit1.istranslated():
-                    continue
-
-                # Actually update translation
-                unit1.merge(
-                    unit2.unit,
-                    overwrite=True,
-                    comments=merge_comments
-                )
-
-                # Handle
-                if add_fuzzy or set_fuzzy:
-                    unit1.markfuzzy()
-
-            # Write to backend and commit
-            self.commit_pending(request, author)
-            store1.save()
-            ret = self.git_commit(request, author, timezone.now(), True)
-            self.check_sync(request=request, change=Change.ACTION_UPLOAD)
-
-        return ret
+        return (not_found, skipped, accepted, store2.count_units())
 
     def merge_suggestions(self, request, store, fuzzy):
-        """Merges content of translate-toolkit store as a suggestions."""
-        ret = False
-        for dummy, unit in store.iterate_merge(fuzzy):
-            # Calculate unit checksum
-            checksum = unit.get_checksum()
+        """Merge content of translate-toolkit store as a suggestions."""
+        not_found = 0
+        skipped = 0
+        accepted = 0
 
+        for dummy, unit in store.iterate_merge(fuzzy):
             # Grab database unit
             try:
-                dbunit = self.unit_set.filter(checksum=checksum)[0]
-            except IndexError:
+                dbunit = self.unit_set.get_unit(unit)
+            except Unit.DoesNotExist:
+                not_found += 1
                 continue
-
-            # Indicate something new
-            ret = True
 
             # Add suggestion
             if dbunit.target != unit.get_target():
                 Suggestion.objects.add(dbunit, unit.get_target(), request)
+                accepted += 1
+            else:
+                skipped += 1
 
         # Update suggestion count
-        if ret:
+        if accepted > 0:
             self.update_stats()
 
-        return ret
+        return (not_found, skipped, accepted, store.count_units())
 
     def merge_upload(self, request, fileobj, overwrite, author=None,
-                     merge_header=True, method='', fuzzy='',
-                     merge_comments=False):
+                     merge_header=True, method='translate', fuzzy=''):
         """Top level handler for file uploads."""
         filecopy = fileobj.read()
         fileobj.close()
@@ -1114,17 +1083,12 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
             filecopy = filecopy[3:]
 
         # Load backend file
-        try:
-            # First try using own loader
-            store = self.store.parse(
-                StringIOMode(fileobj.name, filecopy),
-                self.subproject.template_store
-            )
-        except Exception:
-            # Fallback to automatic detection
-            store = AutoFormat.parse(
-                StringIOMode(fileobj.name, filecopy),
-            )
+        store = try_load(
+            fileobj.name,
+            filecopy,
+            self.subproject.file_format_cls,
+            self.subproject.template_store
+        )
 
         # Optionally set authorship
         if author is None:
@@ -1134,52 +1098,26 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
         if hasattr(store.store, 'parseheader'):
             header = store.store.parseheader()
             if 'Plural-Forms' in header and \
-                    self.language.get_plural_form() != header['Plural-Forms']:
+                    not self.language.same_plural(header['Plural-Forms']):
                 raise Exception('Plural forms do not match the language.')
 
-        # List translations we should process
-        # Filter out those who don't want automatic update, but keep ourselves
-        translations = Translation.objects.filter(
-            language=self.language,
-            subproject__project=self.subproject.project
-        ).filter(
-            Q(pk=self.pk) | Q(subproject__allow_translation_propagation=True)
-        )
-
-        ret = False
-
-        if method in ('', 'fuzzy'):
-            # Do actual merge
-            if self.subproject.has_template():
-                # Merge on units level
-                ret = self.merge_translations(
+        if method in ('translate', 'fuzzy'):
+            # Merge on units level
+            with self.subproject.repository.lock:
+                return self.merge_translations(
                     request,
                     store,
                     overwrite,
                     (method == 'fuzzy'),
-                    fuzzy
+                    fuzzy,
+                    merge_header,
                 )
-            else:
-                # Merge on file level
-                for translation in translations:
-                    ret |= translation.merge_store(
-                        request,
-                        author,
-                        store,
-                        overwrite,
-                        merge_header,
-                        (method == 'fuzzy'),
-                        fuzzy,
-                        merge_comments=merge_comments,
-                    )
-        else:
-            # Add as sugestions
-            ret = self.merge_suggestions(request, store, fuzzy)
 
-        return ret, store.count_units()
+        # Add as sugestions
+        return self.merge_suggestions(request, store, fuzzy)
 
     def invalidate_cache(self, cache_type=None):
-        """Invalidates any cached stats."""
+        """Invalidate any cached stats."""
         # Get parts of key cache
         slug = self.subproject.get_full_slug()
         code = self.language.code
@@ -1192,7 +1130,7 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
 
         # Actually delete the cache
         for rqtype in keys:
-            cache_key = 'counts-%s-%s-%s' % (slug, code, rqtype)
+            cache_key = 'counts-{0}-{1}-{2}'.format(slug, code, rqtype)
             cache.delete(cache_key)
 
     def get_kwargs(self):
@@ -1203,11 +1141,11 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
         }
 
     def get_export_url(self):
-        """Returns URL of exported git repository."""
+        """Return URL of exported git repository."""
         return self.subproject.get_export_url()
 
     def get_stats(self):
-        """Returns stats dictionary"""
+        """Return stats dictionary"""
         return {
             'code': self.language.code,
             'name': self.language.name,
@@ -1238,7 +1176,7 @@ class Translation(models.Model, URLMixin, PercentMixin, LoggerMixin):
 
         # Remove file from VCS
         self.commit_message = '__delete__'
-        with self.subproject.repository.lock():
+        with self.subproject.repository.lock:
             self.subproject.repository.remove(
                 [self.filename],
                 self.get_commit_message(),

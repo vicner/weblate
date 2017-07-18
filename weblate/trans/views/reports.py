@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from __future__ import unicode_literals
@@ -29,11 +29,11 @@ from django.core.exceptions import PermissionDenied
 from weblate.trans.models.change import Change
 from weblate.trans.forms import ReportsForm
 from weblate.trans.views.helper import get_subproject
-from weblate.trans.permissions import can_view_reports
+from weblate.permissions.helpers import can_view_reports
 
 
 def generate_credits(component, start_date, end_date):
-    """Generates credits data for given component."""
+    """Generate credits data for given component."""
 
     result = []
 
@@ -121,7 +121,7 @@ def get_credits(request, project, subproject):
 
 
 def generate_counts(component, start_date, end_date):
-    """Generates credits data for given component."""
+    """Generate credits data for given component."""
 
     result = {}
 

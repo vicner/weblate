@@ -10,12 +10,14 @@ filter:
     excluded_paths:
         - '*/migrations/*'
 before_commands:
+    - sudo pip install -r ci/requirements-scrutinizer.txt
     - sudo pip3 install -r ci/requirements-scrutinizer.txt
 build:
     environment:
-            python: 3.5.0
+        python: 3.6
     dependencies:
         override:
+            - pip install six
             - pip install -r ci/requirements-scrutinizer.txt
     tests:
         override:

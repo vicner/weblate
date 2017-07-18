@@ -11,15 +11,82 @@ Code and development
 
 Weblate is being developed on GitHub <https://github.com/WeblateOrg/weblate>. You
 are welcome to fork the code and open pull requests. Patches in any other form
-are welcome as well. The code should follow PEP-8 coding guidelines.
+are welcome as well. 
+
+Coding standard
++++++++++++++++
+
+The code should follow PEP-8 coding guidelines.
+
+It is good idea to check your contributions using :program:`pep8`,
+:program:`pylint` and :program:`pyflages`. You can execute all checks
+by script :file:`ci/run-lint`.
+
+Testsuite
++++++++++
 
 We do write testsuite for our code, so please add testcases for any new
 functionality and verify that it works. You can see current test results on
 Travis <https://travis-ci.org/WeblateOrg/weblate> and coverage on Codecov
 <https://codecov.io/github/WeblateOrg/weblate>.
 
-The issue tracker is hosted on GitHub as well:
+To run testsuite locally use:
+
+.. code-block:: sh
+
+    ./manage.py test --settings weblate.settings_test
+
+You can also specify individual tests to run:
+
+.. code-block:: sh
+
+    ./manage.py test --settings weblate.settings_test weblate.gitexport
+
+.. seealso::
+
+    See :doc:`django:topics/testing/index` for more information on running and
+    writing tests for Django.
+
+Reporting issues
+----------------
+
+Issue tracking
+++++++++++++++
+
+Our issue tracker is hosted at GitHub:
 <https://github.com/WeblateOrg/weblate/issues>
+
+Feel welcome to report any issues or suggestions to improve Weblate there. In
+case you have found security issue in Weblate, please consult section below.
+
+.. _security:
+
+Security issues
++++++++++++++++
+
+In order to give the community time to respond and upgrade we strongly urge you
+report all security issues privately. We're currently using HackerOne to handle
+security issues, so you are welcome to report issues directly at
+<https://hackerone.com/weblate>.
+
+Alternatively you can report them to security@weblate.org, which ends up on
+HackerOne as well.
+
+If you don't want to use HackerOne for whatever reason, you can send the report
+by email to michal@cihar.com. You can choose to encrypt it using his PGP key
+`9C27B31342B7511D`.
+
+.. note::
+
+    We're heavily depending on third party components for many things.  In case
+    you find vulnerability which is affecting those components in general,
+    please report it directly to them.
+
+    See following sites for some of these:
+
+    * :doc:`Django <django:internals/security>`
+    * `Django REST Framework <http://www.django-rest-framework.org/#security>`_
+    * `Python Social Auth <https://github.com/python-social-auth>`_
 
 Starting with our codebase
 --------------------------

@@ -52,7 +52,7 @@ actions.
 .. code-block:: sh
 
     # Add remote
-    git remote add weblate git://git.weblate.org/debian-handbook.git
+    git remote add weblate https://hosted.weblate.org/git/weblate/master/
 
     # Update remotes
     git remote update
@@ -119,6 +119,31 @@ Here are examples of workflows used with Weblate:
 
 Of course your are free to mix all of these as you wish.
 
+How can I limit Weblate access to translations only without exposing source code to it?
+---------------------------------------------------------------------------------------
+
+You can use `git submodule`_ for separating translations from source code
+while still having them under version control.
+
+1. Create repository with your translation files.
+2. Add this as submodule to your code:
+
+   .. code-block:: sh
+
+        git submodule add git@example.com:project-translations.git path/to/translations
+
+3. Link Weblate to this repository, it no longer needs access to repository
+   with your source code.
+4. You can update the main repository by translations from Weblate by:
+
+   .. code-block:: sh
+
+        git submodule update --remote path/to/translations
+
+Please consult `git submodule`_ documentation for more details.
+
+.. _`git submodule`: https://git-scm.com/docs/git-submodule
+
 How can I check if my Weblate is configured properly?
 -----------------------------------------------------
 
@@ -157,6 +182,7 @@ Why do I get warning about not reflected changes on database migration?
 When running :command:`./manage.py migrate`, you can get following warning::
 
     Your models have changes that are not yet reflected in a migration, and so won't be applied.
+    Run 'manage.py makemigrations' to make new migrations, and then re-run 'manage.py migrate' to apply them.
 
 This is expected as Weblate generates choices for some fields and Django
 migrations can not reflect this. You can safely ignore this warning.
@@ -363,7 +389,23 @@ capable database, see :ref:`production-database` for more information.
 
 .. seealso:: 
    
-   :ref:`production-database`, `Django's databases <https://docs.djangoproject.com/en/stable/ref/databases/>`_
+   :ref:`production-database`,
+   :doc:`django:ref/databases`
+
+
+When accessing the site I get Bad Request (400) error
+-----------------------------------------------------
+
+This is most likely caused by not properly configured :setting:`ALLOWED_HOSTS`.
+It needs to contain all hostnames you want to access your Weblate. For example:
+
+.. code-block:: python
+
+    ALLOWED_HOSTS = ['weblate.example.com', 'weblate', 'localhost']
+
+.. seealso::
+
+    :ref:`production-hosts`
 
 Features
 ++++++++

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,66 +15,55 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-"""
-Helpers for quality checks tests.
-"""
+"""Helper for quality checks tests."""
+from __future__ import unicode_literals
 
-import uuid
+import random
 
 from django.test import TestCase
 
 
 class MockLanguage(object):
-    '''
-    Mock language object.
-    '''
+    """Mock language object."""
     def __init__(self, code='cs'):
         self.code = code
 
 
 class MockProject(object):
-    '''
-    Mock project object.
-    '''
+    """Mock project object."""
     def __init__(self):
         self.id = 1
         self.source_language = MockLanguage('en')
 
 
 class MockSubProject(object):
-    '''
-    Mock subproject object.
-    '''
+    """Mock subproject object."""
     def __init__(self):
         self.id = 1
         self.project = MockProject()
 
 
 class MockTranslation(object):
-    '''
-    Mock translation object.
-    '''
+    """Mock translation object."""
     def __init__(self, code='cs'):
         self.language = MockLanguage(code)
         self.subproject = MockSubProject()
+        self.template = False
 
-    @staticmethod
-    def is_template():
-        return False
+    def is_template(self):
+        return self.template
 
 
 class MockUnit(object):
-    '''
-    Mock unit object.
-    '''
-    def __init__(self, checksum=None, flags='', code='cs', source='',
+    """Mock unit object."""
+    def __init__(self, id_hash=None, flags='', code='cs', source='',
                  comment=''):
-        if checksum is None:
-            checksum = str(uuid.uuid1())
-        self.checksum = checksum
+        if id_hash is None:
+            id_hash = random.randint(0, 65536)
+        self.id_hash = id_hash
         self.flags = flags
         self.translation = MockTranslation(code)
         self.source = source
@@ -91,9 +80,7 @@ class MockUnit(object):
 
 
 class CheckTestCase(TestCase):
-    '''
-    Generic test, also serves for testing base class.
-    '''
+    """Generic test, also serves for testing base class."""
     check = None
 
     def setUp(self):
@@ -110,9 +97,7 @@ class CheckTestCase(TestCase):
         self.test_highlight = ()
 
     def do_test(self, expected, data, lang='cs'):
-        '''
-        Performs single check if we have data to test.
-        '''
+        """Perform single check if we have data to test."""
         if not data or self.check is None:
             return
         result = self.check.check_single(
@@ -123,12 +108,12 @@ class CheckTestCase(TestCase):
         if expected:
             self.assertTrue(
                 result,
-                'Check did not fire for "%s"/"%s" (%s)' % data
+                'Check did not fire for "{0}"/"{1}" ({2})'.format(*data)
             )
         else:
             self.assertFalse(
                 result,
-                'Check did fire for "%s"/"%s" (%s)' % data
+                'Check did fire for "{0}"/"{1}" ({2})'.format(*data)
             )
 
     def test_single_good_matching(self):

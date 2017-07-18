@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 from __future__ import unicode_literals
 
@@ -124,6 +124,7 @@ SAME_BLACKLIST = frozenset((
     'context',
     'control',
     'cookie',
+    'cookies',
     'copyright',
     'creation',
     'criteria',
@@ -153,6 +154,7 @@ SAME_BLACKLIST = frozenset((
     'destination',
     'detail',
     'details',
+    'developer',
     'devscripts',
     'dialog',
     'ding',
@@ -161,6 +163,7 @@ SAME_BLACKLIST = frozenset((
     'distance',
     'distribution',
     'distro',
+    'dns',
     'doc',
     'docs',
     'doctor',
@@ -320,6 +323,7 @@ SAME_BLACKLIST = frozenset((
     'ios',
     'ip6tables',
     'iptables',
+    'ipv4',
     'ipv6',
     'irix',
     'isbn',
@@ -524,6 +528,7 @@ SAME_BLACKLIST = frozenset((
     'posts',
     'pre',
     'pre-commit',
+    'prefix',
     'prince',
     'privacy',
     'private',
@@ -765,6 +770,11 @@ SAME_BLACKLIST = frozenset((
     'zoo',
     'zoom',
 
+    # Currencies
+    'btc',
+    'eur',
+    'usd',
+
     # Months are same in some languages
     'january',
     'february',
@@ -836,6 +846,7 @@ SAME_BLACKLIST = frozenset((
     'azerbaijani',
     'bashkir',
     'basque',
+    'bavarian',
     'belarusian',
     'belgium',
     'bengali',
@@ -860,6 +871,7 @@ SAME_BLACKLIST = frozenset((
     'croatian',
     'czech',
     'danish',
+    'dhivehi',
     'dogri',
     'dutch',
     'dzongkha',

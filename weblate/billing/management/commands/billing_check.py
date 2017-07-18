@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
 from datetime import timedelta
@@ -27,10 +27,16 @@ from weblate.billing.models import Billing
 
 
 class Command(BaseCommand):
-    """
-    Command for billing check.
-    """
+    """Command for billing check."""
     help = 'checks billing limits'
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--grace',
+            type=int,
+            default=30,
+            help='grace period'
+        )
 
     def handle(self, *args, **options):
         header = False
@@ -43,7 +49,7 @@ class Command(BaseCommand):
                     ' * {0}'.format(bill)
                 )
         header = False
-        due_date = timezone.now() - timedelta(days=30)
+        due_date = timezone.now() - timedelta(days=options['grace'])
         for bill in Billing.objects.filter(state=Billing.STATE_ACTIVE):
             if not bill.invoice_set.filter(end__gt=due_date).exists():
                 if not header:

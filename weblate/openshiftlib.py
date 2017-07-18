@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,7 +15,7 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 """OpenShift integration support"""
 
@@ -28,7 +28,7 @@ from string import Template
 
 
 def get_openshift_secret_key():
-    """Tries to get secred token from OpenShift environment"""
+    """Trie to get secred token from OpenShift environment"""
 
     # Use actual secret token
     token = os.getenv('OPENSHIFT_SECRET_TOKEN')
@@ -50,7 +50,7 @@ def get_openshift_secret_key():
 
 
 def import_env_vars(environ, target):
-    """Imports WEBLATE_* variables into given object.
+    """Import WEBLATE_* variables into given object.
 
     This is used for importing settings from environment into settings module.
     """
@@ -63,6 +63,8 @@ def import_env_vars(environ, target):
             except ValueError as err:
                 if not err.args:
                     err.args = (
-                        "Error parsing %s = '%s': %s" % (name, value, err),
+                        "Error parsing {0} = '{1}': {2}".format(
+                            name, value, err
+                        ),
                     )
                 raise

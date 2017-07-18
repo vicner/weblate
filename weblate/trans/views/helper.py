@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright © 2012 - 2016 Michal Čihař <michal@cihar.com>
+# Copyright © 2012 - 2017 Michal Čihař <michal@cihar.com>
 #
 # This file is part of Weblate <https://weblate.org/>
 #
@@ -15,26 +15,23 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-'''
-Helper methods for views.
-'''
+"""Helper methods for views."""
 
 from django.http import HttpResponse, Http404
 from django.shortcuts import get_object_or_404
 import django.utils.translation
-from django.utils.translation import trans_real
+from django.utils.translation import trans_real, ugettext as _
 
-from weblate.trans import messages
+from weblate.utils import messages
+from weblate.permissions.helpers import check_access
 from weblate.trans.exporters import get_exporter
 from weblate.trans.models import Project, SubProject, Translation
 
 
 def get_translation(request, project, subproject, lang, skip_acl=False):
-    '''
-    Returns translation matching parameters.
-    '''
+    """Return translation matching parameters."""
     translation = get_object_or_404(
         Translation.objects.prefetch(),
         language__code=lang,
@@ -43,41 +40,35 @@ def get_translation(request, project, subproject, lang, skip_acl=False):
         enabled=True
     )
     if not skip_acl:
-        translation.check_acl(request)
+        check_access(request, translation.subproject.project)
     return translation
 
 
 def get_subproject(request, project, subproject, skip_acl=False):
-    '''
-    Returns subproject matching parameters.
-    '''
+    """Return subproject matching parameters."""
     subproject = get_object_or_404(
         SubProject.objects.prefetch(),
         project__slug=project,
         slug=subproject
     )
     if not skip_acl:
-        subproject.check_acl(request)
+        check_access(request, subproject.project)
     return subproject
 
 
 def get_project(request, project, skip_acl=False):
-    '''
-    Returns project matching parameters.
-    '''
+    """Return project matching parameters."""
     project = get_object_or_404(
         Project,
         slug=project,
     )
     if not skip_acl:
-        project.check_acl(request)
+        check_access(request, project)
     return project
 
 
 def get_project_translation(request, project=None, subproject=None, lang=None):
-    '''
-    Returns project, subproject, translation tuple for given parameters.
-    '''
+    """Return project, subproject, translation tuple for given parameters."""
 
     if lang is not None and subproject is not None:
         # Language defined? We can get all
@@ -99,9 +90,7 @@ def get_project_translation(request, project=None, subproject=None, lang=None):
 
 
 def try_set_language(lang):
-    '''
-    Tries to activate language
-    '''
+    """Try to activate language"""
 
     try:
         django.utils.translation.activate(lang)
@@ -153,6 +142,23 @@ def download_translation_file(translation, fmt=None):
         )
 
     # Fill in response headers
-    response['Content-Disposition'] = 'attachment; filename=%s' % filename
+    response['Content-Disposition'] = 'attachment; filename={0}'.format(
+        filename
+    )
 
     return response
+
+
+def show_form_errors(request, form):
+    """Show all form errors as a message."""
+    for error in form.non_field_errors():
+        messages.error(request, error)
+    for field in form:
+        for error in field.errors:
+            messages.error(
+                request,
+                _('Error in parameter %(field)s: %(error)s') % {
+                    'field': field.name,
+                    'error': error
+                }
+            )
